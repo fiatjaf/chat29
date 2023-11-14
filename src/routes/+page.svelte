@@ -84,10 +84,10 @@
         </div>
       {/if}
       <div class="mt-4">
-        {#if relay && groupId}
-          <button
+        {#if relay && groupId && naddr}
+          <a
             class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
-            >open</button
+            href="/{naddr}">open</a
           >
         {/if}
       </div>

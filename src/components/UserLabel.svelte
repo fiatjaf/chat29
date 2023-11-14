@@ -19,9 +19,13 @@
   })
 </script>
 
-<div class="inline-flex items-center h-3">
-  {#if picture}
-    <img src={picture} class="h-full ml-1" alt="user avatar" />&nbsp;
-  {/if}
-  <span class="text-gray-600 font-[600]" title={npub}>{name}</span>
+<div class="grid grid-cols-4 items-center">
+  <div class="col-start-1 col-span-1 px-2 flex items-center">
+    {#if picture}
+      <img src={picture} alt="user avatar" />&nbsp;
+    {/if}
+  </div>
+  <div class="col-start-2 col-span-3 text-gray-600 pl-1" title={npub}>
+    {name}
+  </div>
 </div>
