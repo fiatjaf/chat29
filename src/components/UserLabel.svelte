@@ -25,7 +25,10 @@
       <img src={picture} alt="user avatar" />&nbsp;
     {/if}
   </div>
-  <div class="col-start-2 col-span-3 text-gray-600 pl-1" title={npub}>
+  <div
+    class="text-ellipsis overflow-hidden col-start-2 col-span-3 text-rose-700 text-lg pl-1"
+    title={npub}
+  >
     {name}
   </div>
 </div>

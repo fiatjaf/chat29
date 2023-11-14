@@ -1,7 +1,9 @@
 <script lang="ts">
   import debounce from 'debounce'
-  import {ensureRelay} from '$lib/nostr'
   import {nip19, type Relay} from 'nostr-tools'
+
+  import {ensureRelay} from '$lib/nostr'
+  import Header from '$components/Header.svelte'
 
   let relayUrl = ''
   let connecting = false
@@ -61,8 +63,11 @@
   }, 300)
 </script>
 
-<div class="flex justify-between">
-  <column>
+<h1 class="text-2xl h-1/6">
+  <Header />
+</h1>
+<div class="grid grid-cols-7 gap-2">
+  <column class="col-span-3">
     <div class="mt-4">
       type relay url: <input bind:value={relayUrl} on:input={tryConnect} />
     </div>
@@ -93,8 +98,10 @@
       </div>
     </div></column
   >
-  <column class="flex items-center">or</column>
-  <column>
+  <column class="col-span-1 flex items-center justify-center uppercase text-2xl"
+    >or</column
+  >
+  <column class="col-span-3">
     <div class="mt-4 flex items-center">
       type a group code: <textarea
         class="ml-2 h-48"

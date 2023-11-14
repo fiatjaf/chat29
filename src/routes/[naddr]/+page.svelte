@@ -7,6 +7,7 @@
   import {ensureRelay} from '$lib/nostr'
   import {debounce} from 'debounce'
   import UserLabel from '$components/UserLabel.svelte'
+  import Header from '$components/Header.svelte'
 
   let naddr = $page.params.naddr
   let groupId: string | null = null
@@ -103,30 +104,56 @@
   }, 300)
 
   $: groupRawName = relay ? `${groupId}@${new URL(relay.url).host}` : ''
+
+  function sendMessage() {}
 </script>
 
-<header class="my-4 flex items-center">
-  <div class="text-sm">room</div>
-  <div class="text-emerald-600 text-lg mx-4">
-    {groupMetadata.name || groupRawName || $page.params.naddr}
+<header class="pb-8 h-1/6">
+  <div><Header /></div>
+  <div class="flex items-center">
+    <div class="text-sm">room</div>
+    <div class="text-emerald-600 text-lg mx-4">
+      {groupMetadata.name || groupRawName || $page.params.naddr}
+    </div>
+    <div class="text-xs text-stone-400">{groupRawName}</div>
   </div>
-  <div class="text-xs text-stone-400">{groupRawName}</div>
 </header>
 {#if error}
-  <div class="w-full flex justify-center items-center h-24 text-xl">
+  <section class="w-full flex justify-center items-center h-4/5 text-xl">
     {error}
-  </div>
+  </section>
 {:else}
-  <div class="flex flex-col ml-4">
-    {#each messages as message}
-      <div class="grid grid-cols-5 gap-2 items-center hover:bg-stone-200">
-        <div class="col-start-1 col-span-1">
-          <UserLabel pubkey={message.pubkey} />
-        </div>
-        <div class="col-start-auto col-span-4">
-          {message.content}
-        </div>
+  <section class="row-span-9 overflow-y-auto h-4/6">
+    <div class="flex flex-col">
+      <div class="h-full overflow-auto">
+        {#each messages as message}
+          <div class="grid grid-cols-5 gap-2 items-center hover:bg-emerald-100">
+            <div class="col-start-1 col-span-1">
+              <UserLabel pubkey={message.pubkey} />
+            </div>
+            <div class="col-start-auto col-span-4">
+              {message.content}
+            </div>
+          </div>
+        {/each}
       </div>
-    {/each}
-  </div>
+    </div>
+  </section>
+  <section class="h-1/6">
+    <form
+      on:submit={sendMessage}
+      class="grid grid-cols-7 gap-2 pt-4 mb-2 h-full py-4"
+    >
+      <textarea
+        class="h-full w-full bg-stone-100 col-span-6 h-full"
+        placeholder="type a message here"
+      />
+      <div class="col-span-1">
+        <button
+          class="h-full w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
+          >send</button
+        >
+      </div>
+    </form>
+  </section>
 {/if}
