@@ -4,7 +4,7 @@
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
-  import {ensureRelay} from '$lib/nostr'
+  import {ensureRelay, publish} from '$lib/nostr'
   import {debounce} from 'debounce'
   import UserLabel from '$components/UserLabel.svelte'
   import Header from '$components/Header.svelte'
@@ -12,6 +12,9 @@
   let naddr = $page.params.naddr
   let groupId: string | null = null
   let messages: Event[] = []
+  let text = localStorage.getItem('text') || ''
+  let readOnly = false
+  let controlIsDown = false
   let groupMetadata: {
     name: string | null
     picture: string | null
@@ -33,6 +36,10 @@
     messages = messages
     scrollToEnd()
   }, 300)
+
+  const saveToLocalStorage = debounce(() => {
+    localStorage.setItem('text', text)
+  }, 2000)
 
   function scrollToEnd() {
     setTimeout(() => {
@@ -116,19 +123,59 @@
     }
   }
 
-  function sendMessage() {}
+  async function sendMessage() {
+    try {
+      readOnly = true
+      await publish(
+        {
+          kind: 9,
+          content: text,
+          tags: [['h', groupId!]],
+          created_at: Math.round(Date.now() / 1000)
+        },
+        [relay.url]
+      )
+      text = ''
+      saveToLocalStorage()
+      readOnly = false
+    } catch (err) {
+      console.log('failed to send', err)
+    }
+  }
+
+  function onKeyDown(ev: KeyboardEvent) {
+    if (ev.repeat) return
+    switch (ev.key) {
+      case 'Control':
+        controlIsDown = true
+        ev.preventDefault()
+    }
+  }
+
+  function onKeyUp(ev: KeyboardEvent) {
+    switch (ev.key) {
+      case 'Control':
+        controlIsDown = false
+        ev.preventDefault()
+      case 'Enter':
+        if (controlIsDown) sendMessage()
+        ev.preventDefault()
+    }
+  }
 </script>
+
+<svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
 <header class="pb-8 h-1/6">
   <div><Header /></div>
   <div class="flex items-center">
-    <div class="text-sm">room</div>
+    <div class="text-sm w-1/12 text-right">room</div>
     <div
-      class="text-emerald-600 text-lg mx-4 w-48 overflow-hidden text-ellipsis"
+      class="text-emerald-600 text-lg mx-4 w-8/12 overflow-hidden text-ellipsis"
     >
       {groupMetadata.name || groupRawName || $page.params.naddr}
     </div>
-    <div class="text-xs text-stone-400">{groupRawName}</div>
+    <div class="text-xs text-stone-400 w-3/12 text-right">{groupRawName}</div>
   </div>
 </header>
 {#if error}
@@ -162,13 +209,18 @@
     >
       <textarea
         class="h-full w-full bg-stone-100 col-span-6 h-full"
-        placeholder="type a message here"
+        placeholder="type a message here (and use Ctrl+Enter to send)"
+        bind:value={text}
+        on:input={saveToLocalStorage}
+        readonly={readOnly}
       />
       <div class="col-span-1">
         <button
           class="h-full w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
-          >send</button
+          disabled={readOnly || !groupId || !relay}
         >
+          send
+        </button>
       </div>
     </form>
   </section>

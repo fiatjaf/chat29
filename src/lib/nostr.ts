@@ -19,9 +19,6 @@ export type Metadata = {
 const _conn: Record<string, Relay> = {}
 const _metadataCache = new Map<string, Metadata>()
 
-export const cachedArticles = new Map<string, Event>()
-export const cachedReactions = new Map<string, Event>()
-
 export const signer = {
   getPublicKey: async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
