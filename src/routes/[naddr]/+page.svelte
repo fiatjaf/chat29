@@ -27,10 +27,26 @@
   let sub: Sub
   let eoseHappened = false
 
+  $: groupRawName = relay ? `${groupId}@${new URL(relay.url).host}` : ''
+
+  const updateMessages = debounce(() => {
+    messages = messages
+    scrollToEnd()
+  }, 300)
+
+  function scrollToEnd() {
+    setTimeout(() => {
+      document
+        .getElementById(`evt-${messages[messages.length - 1].id.substring(-6)}`)
+        ?.scrollIntoView()
+    }, 25)
+  }
+
   onMount(() => {
     loadChat()
     return unloadChat
   })
+
   afterNavigate(() => {
     if (naddr === $page.params.naddr) return
     unloadChat()
@@ -92,18 +108,13 @@
 
       sub.on('eose', () => {
         messages = messages.reverse()
+        scrollToEnd()
         eoseHappened = true
       })
     } catch (err: any) {
       error = err.message
     }
   }
-
-  const updateMessages = debounce(() => {
-    messages = messages
-  }, 300)
-
-  $: groupRawName = relay ? `${groupId}@${new URL(relay.url).host}` : ''
 
   function sendMessage() {}
 </script>
@@ -112,7 +123,9 @@
   <div><Header /></div>
   <div class="flex items-center">
     <div class="text-sm">room</div>
-    <div class="text-emerald-600 text-lg mx-4">
+    <div
+      class="text-emerald-600 text-lg mx-4 w-48 overflow-hidden text-ellipsis"
+    >
       {groupMetadata.name || groupRawName || $page.params.naddr}
     </div>
     <div class="text-xs text-stone-400">{groupRawName}</div>
@@ -127,7 +140,10 @@
     <div class="flex flex-col">
       <div class="h-full overflow-auto">
         {#each messages as message}
-          <div class="grid grid-cols-5 gap-2 items-center hover:bg-emerald-100">
+          <div
+            class="grid grid-cols-5 gap-2 items-center hover:bg-emerald-100"
+            id={`evt-${message.id.substring(-6)}`}
+          >
             <div class="col-start-1 col-span-1">
               <UserLabel pubkey={message.pubkey} />
             </div>
