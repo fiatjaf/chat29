@@ -89,7 +89,7 @@
       let sub = relay.sub([
         {kinds: [9], '#h': [groupId], limit: 700},
         {kinds: [39000], '#d': [groupId]}
-      ])
+      ], {skipVerification: true})
 
       sub.on('event', event => {
         switch (event.kind) {
