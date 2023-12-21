@@ -5,6 +5,7 @@
   import {getMetadata, type Metadata} from '../lib/nostr.ts'
 
   export let pubkey: string
+  export let imgClass: string = ''
   let metadata: Metadata
   let npub = nip19.npubEncode(pubkey)
 
@@ -20,9 +21,9 @@
 </script>
 
 <div class="grid grid-cols-4 items-center">
-  <div class="col-start-1 col-span-1 px-2 flex items-center">
+  <div class="col-start-1 col-span-1 px-2 flex items-center justify-end">
     {#if picture}
-      <img src={picture} alt="user avatar" />&nbsp;
+      <img class={imgClass} src={picture} alt="user avatar" />&nbsp;
     {/if}
   </div>
   <div

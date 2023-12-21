@@ -3,11 +3,12 @@
   import type {Relay, Subscription} from 'nostr-tools/relay'
   import * as nip19 from 'nostr-tools/nip19'
   import {onMount} from 'svelte'
+  import {debounce} from 'debounce'
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
   import {pool, publish} from '../../lib/nostr.ts'
-  import {debounce} from 'debounce'
+  import {humanDate} from '../../lib/utils.ts'
   import UserLabel from '../../components/UserLabel.svelte'
   import Header from '../../components/Header.svelte'
 
@@ -63,7 +64,7 @@
   })
 
   function unloadChat() {
-    if (sub) sub.unsub()
+    if (sub) sub.close()
     eoseHappened = false
     messages = []
     groupMetadata = {name: null, picture: null, about: ''}
@@ -120,6 +121,9 @@
             messages = messages.reverse()
             scrollToEnd()
             eoseHappened = true
+          },
+          onclose(reason) {
+            console.warn(relay.url, 'relay connection closed', reason)
           }
         }
       )
@@ -193,14 +197,19 @@
       <div class="h-full overflow-auto">
         {#each messages as message}
           <div
-            class="grid grid-cols-5 gap-2 items-center hover:bg-emerald-100"
+            class="grid grid-cols-12 gap-2 items-center hover:bg-emerald-100"
             id={`evt-${message.id.substring(-6)}`}
           >
-            <div class="col-start-1 col-span-1">
-              <UserLabel pubkey={message.pubkey} />
+            <div class="col-start-1 col-span-2">
+              <UserLabel imgClass="max-h-3.5" pubkey={message.pubkey} />
             </div>
-            <div class="col-start-auto col-span-4">
+            <div class="col-start-auto col-span-8">
               {message.content}
+            </div>
+            <div
+              class="col-start-auto col-span-2 flex justify-end text-stone-400 text-xs"
+            >
+              {humanDate(message.created_at)}
             </div>
           </div>
         {/each}
