@@ -1,5 +1,5 @@
 <script>
-  import {account} from '$lib/nostr'
+  import {account} from '../lib/nostr.ts'
   import UserLabel from './UserLabel.svelte'
 </script>
 

@@ -1,11 +1,6 @@
-import {
-  relayInit,
-  utils,
-  type EventTemplate,
-  type Relay,
-  type Event
-} from 'nostr-tools'
+import type {EventTemplate, Event} from 'nostr-tools/pure'
 import {readable} from 'svelte/store'
+import {SimplePool} from 'nostr-tools/pool'
 
 export type Metadata = {
   pubkey: string
@@ -16,7 +11,8 @@ export type Metadata = {
   picture?: string
 }
 
-const _conn: Record<string, Relay> = {}
+export const pool = new SimplePool()
+
 const _metadataCache = new Map<string, Metadata>()
 
 export const signer = {
@@ -50,26 +46,11 @@ export const account = readable<Metadata | null>(null, set => {
   }
 })
 
-export const profiles = [
+export const profileRelays = [
   'wss://relay.damus.io',
   'wss://relay.primal.net',
   'wss://purplepag.es'
 ]
-
-export async function ensureRelay(url: string): Promise<Relay> {
-  const nm = utils.normalizeURL(url)
-
-  if (!_conn[nm]) {
-    _conn[nm] = relayInit(nm, {
-      getTimeout: 3000,
-      listTimeout: 5000
-    })
-  }
-
-  const relay = _conn[nm]
-  await relay.connect()
-  return relay
-}
 
 export async function publish(
   unsignedEvent: EventTemplate,
@@ -95,7 +76,7 @@ export async function publish(
   await Promise.all(
     relays.map(async url => {
       try {
-        const r = await ensureRelay(url)
+        const r = await pool.ensureRelay(url)
         await r.publish(event)
         successes.push(url)
       } catch (err) {
@@ -110,33 +91,17 @@ export async function publish(
 }
 
 export async function getMetadata(pubkey: string): Promise<Metadata> {
-  let metadata = _metadataCache.get(pubkey)
-  if (metadata) return metadata
+  const cached = _metadataCache.get(pubkey)
+  if (cached) return cached
 
   // TODO: use dexie as a second-level cache
 
-  metadata = await new Promise<Metadata>(resolve => {
-    let ongoing = profiles.length
-    profiles.forEach(async url => {
-      const r = await ensureRelay(url)
-      const event = await r.get({kinds: [0], authors: [pubkey]})
-      if (event) {
-        try {
-          const metadata = JSON.parse(event.content)
-          metadata.pubkey = pubkey
-          resolve(metadata)
-        } catch (err) {
-          ongoing--
-          if (ongoing === 0) {
-            resolve({pubkey, nip05valid: false})
-          }
-        }
-      }
-    })
-  })
-
-  // TODO: validate nip05
-
-  _metadataCache.set(pubkey, metadata)
+  let metadata = {pubkey, nip05valid: false}
+  try {
+    const event = await pool.get(profileRelays, {kinds: [0], authors: [pubkey]})
+    metadata = {...JSON.parse(event!.content), ...metadata}
+  } catch (err) {
+    /***/
+  }
   return metadata
 }

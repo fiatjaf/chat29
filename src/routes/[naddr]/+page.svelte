@@ -1,13 +1,15 @@
 <script lang="ts">
-  import {nip19, type Event, type Relay, type Sub} from 'nostr-tools'
+  import type {Event} from 'nostr-tools/pure'
+  import type {Relay, Subscription} from 'nostr-tools/relay'
+  import * as nip19 from 'nostr-tools/nip19'
   import {onMount} from 'svelte'
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
-  import {ensureRelay, publish} from '$lib/nostr'
+  import {pool, publish} from '../../lib/nostr.ts'
   import {debounce} from 'debounce'
-  import UserLabel from '$components/UserLabel.svelte'
-  import Header from '$components/Header.svelte'
+  import UserLabel from '../../components/UserLabel.svelte'
+  import Header from '../../components/Header.svelte'
 
   let naddr = $page.params.naddr
   let groupId: string | null = null
@@ -26,8 +28,8 @@
   }
   let info: {pubkey: string; name: string; description: string; icon: string}
   let relay: Relay
+  let sub: Subscription
   let error: string
-  let sub: Sub
   let eoseHappened = false
 
   $: groupRawName = relay ? `${groupId}@${new URL(relay.url).host}` : ''
@@ -81,43 +83,46 @@
       let relayUrl = relays![0]
       groupId = identifier
 
-      relay = await ensureRelay(relayUrl)
+      relay = await pool.ensureRelay(relayUrl)
+      relay.trusted = true
       info = await fetch(relayUrl.replace('ws', 'http'), {
         headers: {accept: 'application/nostr+json'}
       }).then(r => r.json())
 
-      let sub = relay.sub([
-        {kinds: [9], '#h': [groupId], limit: 700},
-        {kinds: [39000], '#d': [groupId]}
-      ], {skipVerification: true})
-
-      sub.on('event', event => {
-        switch (event.kind) {
-          case 39000:
-            event.tags.forEach(tag => {
-              switch (tag[0]) {
-                case 'name':
-                  if (tag[1] && tag[1].trim().length > 0)
-                    groupMetadata.name = tag[1].trim()
-                case 'picture':
-                  if (tag[1]) groupMetadata.picture = tag[1]
-                case 'about':
-                  if (tag[1]) groupMetadata.picture = tag[1]
-              }
-            })
-            break
-          case 9:
-            messages.push(event as any)
-            if (eoseHappened) updateMessages()
-            break
+      sub = relay.subscribe(
+        [
+          {kinds: [9], '#h': [groupId], limit: 700},
+          {kinds: [39000], '#d': [groupId]}
+        ],
+        {
+          onevent(event) {
+            switch (event.kind) {
+              case 39000:
+                event.tags.forEach(tag => {
+                  switch (tag[0]) {
+                    case 'name':
+                      if (tag[1] && tag[1].trim().length > 0)
+                        groupMetadata.name = tag[1].trim()
+                    case 'picture':
+                      if (tag[1]) groupMetadata.picture = tag[1]
+                    case 'about':
+                      if (tag[1]) groupMetadata.picture = tag[1]
+                  }
+                })
+                break
+              case 9:
+                messages.push(event as any)
+                if (eoseHappened) updateMessages()
+                break
+            }
+          },
+          oneose() {
+            messages = messages.reverse()
+            scrollToEnd()
+            eoseHappened = true
+          }
         }
-      })
-
-      sub.on('eose', () => {
-        messages = messages.reverse()
-        scrollToEnd()
-        eoseHappened = true
-      })
+      )
     } catch (err: any) {
       error = err.message
     }

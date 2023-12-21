@@ -2,7 +2,7 @@
   import {onMount} from 'svelte'
   import {nip19} from 'nostr-tools'
 
-  import {getMetadata, type Metadata} from '$lib/nostr'
+  import {getMetadata, type Metadata} from '../lib/nostr.ts'
 
   export let pubkey: string
   let metadata: Metadata

@@ -2,8 +2,8 @@
   import debounce from 'debounce'
   import {nip19, type Relay} from 'nostr-tools'
 
-  import {ensureRelay} from '$lib/nostr'
-  import Header from '$components/Header.svelte'
+  import {pool} from '../lib/nostr.ts'
+  import Header from '../components/Header.svelte'
 
   let relayUrl = ''
   let connecting = false
@@ -28,7 +28,7 @@
     connecting = true
     failed = false
     try {
-      relay = await ensureRelay(relayUrl)
+      relay = await pool.ensureRelay(relayUrl)
       info = await fetch(relayUrl.replace('ws', 'http'), {
         headers: {accept: 'application/nostr+json'}
       }).then(r => r.json())
