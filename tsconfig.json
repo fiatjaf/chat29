@@ -10,7 +10,9 @@
     "sourceMap": true,
     "strict": true,
     "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "module": "NodeNext"
   }
   // Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
   //
