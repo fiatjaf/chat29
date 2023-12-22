@@ -207,6 +207,7 @@
             </div>
             <div
               class="col-start-auto col-span-2 flex justify-end text-stone-400 text-xs"
+              title={new Date(message.created_at * 1000).toString()}
             >
               {humanDate(message.created_at)}
             </div>
