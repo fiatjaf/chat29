@@ -1,6 +1,6 @@
 <script lang="ts">
   import type {Event} from 'nostr-tools/pure'
-  import type {Relay, Subscription} from 'nostr-tools/relay'
+  import type {AbstractRelay, Subscription} from 'nostr-tools/abstract-relay'
   import * as nip19 from 'nostr-tools/nip19'
   import {onMount} from 'svelte'
   import {debounce} from 'debounce'
@@ -28,7 +28,7 @@
     about: ''
   }
   let info: {pubkey: string; name: string; description: string; icon: string}
-  let relay: Relay
+  let relay: AbstractRelay
   let sub: Subscription
   let error: string
   let eoseHappened = false
@@ -85,7 +85,6 @@
       groupId = identifier
 
       relay = await pool.ensureRelay(relayUrl)
-      relay.trusted = true
       info = await fetch(relayUrl.replace('ws', 'http'), {
         headers: {accept: 'application/nostr+json'}
       }).then(r => r.json())

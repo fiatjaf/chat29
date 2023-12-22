@@ -1,6 +1,12 @@
-import type {EventTemplate, Event} from 'nostr-tools/pure'
+import {
+  setNostrWasm,
+  type EventTemplate,
+  type Event,
+  verifyEvent
+} from 'nostr-tools/wasm'
 import {readable} from 'svelte/store'
-import {SimplePool} from 'nostr-tools/pool'
+import {AbstractSimplePool} from 'nostr-tools/abstract-pool'
+import {initNostrWasm} from 'nostr-wasm'
 
 export type Metadata = {
   pubkey: string
@@ -11,7 +17,9 @@ export type Metadata = {
   picture?: string
 }
 
-export const pool = new SimplePool()
+initNostrWasm().then(setNostrWasm)
+
+export const pool = new AbstractSimplePool({verifyEvent})
 
 const _metadataCache = new Map<string, Metadata>()
 
