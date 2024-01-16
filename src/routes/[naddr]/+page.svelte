@@ -222,7 +222,7 @@
       class="grid grid-cols-7 gap-2 pt-4 mb-2 h-full py-4"
     >
       <textarea
-        class="h-full w-full bg-stone-100 col-span-6 h-full"
+        class="h-full w-full bg-stone-100 col-span-6"
         placeholder="type a message here (and use Ctrl+Enter to send)"
         bind:value={text}
         on:input={saveToLocalStorage}

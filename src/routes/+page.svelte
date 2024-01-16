@@ -1,8 +1,11 @@
 <script lang="ts">
   import debounce from 'debounce'
-  import {nip19, type Relay} from 'nostr-tools'
+  import * as nip19 from 'nostr-tools/nip19'
+  import type {Event} from 'nostr-tools/pure'
+  import type {Subscription, Relay} from 'nostr-tools/relay'
 
   import {pool} from '../lib/nostr.ts'
+  import {parseChannel, type Channel} from '../lib/channel.ts'
   import Header from '../components/Header.svelte'
 
   let relayUrl = ''
@@ -11,11 +14,19 @@
   let naddr = ''
   let groupId = ''
   let relay: Relay | null = null
+  let sub: Subscription
+  let channels: Channel[] = []
   let info: {pubkey: string; name: string; description: string; icon: string}
 
   const tryConnect = debounce(async () => {
+    if (sub) {
+      sub.close()
+      channels = []
+    }
+    let normalized = relayUrl.startsWith('ws') ? relayUrl : 'wss://' + relayUrl
+
     try {
-      let url = new URL(relayUrl)
+      let url = new URL(normalized)
       if (!url.protocol.startsWith('ws')) return
     } catch (err) {
       relay = null
@@ -28,10 +39,34 @@
     connecting = true
     failed = false
     try {
-      relay = await pool.ensureRelay(relayUrl)
-      info = await fetch(relayUrl.replace('ws', 'http'), {
-        headers: {accept: 'application/nostr+json'}
-      }).then(r => r.json())
+      await Promise.all([
+        pool.ensureRelay(normalized).then(rl => {
+          relay = rl
+          sub = rl.subscribe(
+            [
+              {
+                kinds: [39000],
+                limit: 50
+              }
+            ],
+            {
+              onevent(event: Event) {
+                channels.push(parseChannel(event))
+              },
+              oneose() {
+                channels = channels
+              }
+            }
+          )
+        }),
+        fetch(normalized.replace(/^ws/, 'http'), {
+          headers: {accept: 'application/nostr+json'}
+        })
+          .then(r => r.json())
+          .then(i => {
+            info = i
+          })
+      ])
     } catch (err) {
       failed = true
       relay = null
@@ -71,7 +106,7 @@
     <div class="mt-4">
       type relay url: <input bind:value={relayUrl} on:input={tryConnect} />
     </div>
-    <div class="mt-2 text-right">
+    <div class="mt-2 pl-4">
       {#if relay || connecting || failed}
         <span class="text-stone-500">{relay?.url || relayUrl}</span>
       {/if}
@@ -82,22 +117,40 @@
       {:else if failed}
         <span class="text-red-700">failed to connect</span>
       {/if}
+    </div>
 
-      {#if relay}
-        <div class="mt-4">
-          type group id: <input bind:value={groupId} on:input={encode} />
-        </div>
-      {/if}
-      <div class="mt-4">
-        {#if relay && groupId && naddr}
-          <a
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
-            href="/{naddr}">open</a
+    {#each channels as channel}
+      <div class="mt-8 pl-4 max-h-64">
+        <div class="flex">
+          <div
+            class="cursor-pointer hover:underline"
+            on:click={() => {
+              groupId = channel.id
+              encode()
+            }}
           >
-        {/if}
+            {channel.id}
+          </div>
+          <div class="ml-4">{channel.name}</div>
+        </div>
       </div>
-    </div></column
-  >
+    {/each}
+
+    {#if relay}
+      <div class="mt-4">
+        type group id: <input bind:value={groupId} on:input={encode} />
+      </div>
+    {/if}
+
+    <div class="mt-4">
+      {#if relay && groupId && naddr}
+        <a
+          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
+          href="/{naddr}">open</a
+        >
+      {/if}
+    </div>
+  </column>
   <column class="col-span-1 flex items-center justify-center uppercase text-2xl"
     >or</column
   >
