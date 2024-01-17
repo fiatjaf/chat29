@@ -11,10 +11,27 @@ export function humanDate(created_at: number): string {
 export const toastState = writable<ToastState | null>(null)
 
 export function showToast(state: ToastState, timeout: number = 4000) {
-  toastState.set(state)
-  setTimeout(() => {
+  toastState.update(curr => {
+    if (curr === null) {
+      setTimeout(onToastEnd, timeout)
+      return state
+    } else {
+      nextToasts.push({state, timeout})
+      return curr
+    }
+  })
+}
+
+const nextToasts: {state: ToastState; timeout: number}[] = []
+
+function onToastEnd() {
+  const next = nextToasts.shift()
+  if (next) {
+    toastState.set(next.state)
+    setTimeout(onToastEnd)
+  } else {
     toastState.set(null)
-  }, timeout)
+  }
 }
 
 type ToastState = {
