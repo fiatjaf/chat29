@@ -62,40 +62,11 @@ export const profileRelays = [
 
 export async function publish(
   unsignedEvent: EventTemplate,
-  relays: string[]
-): Promise<{
-  event?: Event
-  successes: string[]
-  failures: string[]
-  error?: string
-}> {
-  const successes: string[] = []
-  const failures: string[] = []
-  let error: string | undefined
-
-  let event: Event
-  try {
-    event = await signer.signEvent(unsignedEvent)
-  } catch (err) {
-    error = String(err)
-    return {event: undefined, successes, failures, error}
-  }
-
-  await Promise.all(
-    relays.map(async url => {
-      try {
-        const r = await pool.ensureRelay(url)
-        await r.publish(event)
-        successes.push(url)
-      } catch (err) {
-        console.warn('failed to publish', event, 'to', url, err)
-        failures.push(url)
-        error = String(err)
-      }
-    })
-  )
-
-  return {event, successes, failures, error}
+  relay: string
+): Promise<void> {
+  const event = await signer.signEvent(unsignedEvent)
+  const r = await pool.ensureRelay(relay)
+  await r.publish(event)
 }
 
 export async function getMetadata(pubkey: string): Promise<Metadata> {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.postcss'
+  import Toast from '../components/Toast.svelte'
 </script>
 
 <svelte:head>
@@ -7,3 +8,5 @@
 </svelte:head>
 
 <slot />
+
+<Toast />

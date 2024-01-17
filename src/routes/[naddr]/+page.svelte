@@ -8,7 +8,7 @@
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
   import {pool, publish} from '../../lib/nostr.ts'
-  import {humanDate} from '../../lib/utils.ts'
+  import {showToast, humanDate} from '../../lib/utils.ts'
   import UserLabel from '../../components/UserLabel.svelte'
   import Header from '../../components/Header.svelte'
 
@@ -141,13 +141,14 @@
           tags: [['h', groupId!]],
           created_at: Math.round(Date.now() / 1000)
         },
-        [relay.url]
+        relay.url
       )
       text = ''
       saveToLocalStorage()
       readOnly = false
     } catch (err) {
       console.log('failed to send', err)
+      showToast({type: 'error', text: String(err)})
     }
   }
 
