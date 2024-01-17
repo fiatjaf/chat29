@@ -45,11 +45,15 @@
   }, 2000)
 
   function scrollToEnd() {
-    setTimeout(() => {
-      document
-        .getElementById(`evt-${messages[messages.length - 1].id.substring(-6)}`)
-        ?.scrollIntoView()
-    }, 25)
+    if (messages.length > 3) {
+      setTimeout(() => {
+        document
+          .getElementById(
+            `evt-${messages[messages.length - 1].id.substring(-6)}`
+          )
+          ?.scrollIntoView()
+      }, 25)
+    }
   }
 
   onMount(() => {
