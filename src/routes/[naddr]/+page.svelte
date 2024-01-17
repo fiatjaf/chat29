@@ -18,6 +18,7 @@
   let text = localStorage.getItem('text') || ''
   let readOnly = false
   let controlIsDown = false
+  let shiftIsDown = false
   let groupMetadata: {
     name: string | null
     picture: string | null
@@ -153,26 +154,40 @@
     } catch (err) {
       console.log('failed to send', err)
       showToast({type: 'error', text: String(err)})
+      readOnly = false
     }
   }
 
   function onKeyDown(ev: KeyboardEvent) {
     if (ev.repeat) return
     switch (ev.key) {
+      case 'Shift':
+        shiftIsDown = true
+        ev.preventDefault()
+        break
       case 'Control':
         controlIsDown = true
         ev.preventDefault()
+        break
+      case 'Enter':
+        if (!controlIsDown && !shiftIsDown) {
+          ev.preventDefault()
+          sendMessage()
+        }
+        break
     }
   }
 
   function onKeyUp(ev: KeyboardEvent) {
     switch (ev.key) {
+      case 'Shift':
+        shiftIsDown = false
+        ev.preventDefault()
+        break
       case 'Control':
         controlIsDown = false
         ev.preventDefault()
-      case 'Enter':
-        if (controlIsDown) sendMessage()
-        ev.preventDefault()
+        break
     }
   }
 </script>
@@ -228,14 +243,18 @@
     >
       <textarea
         class="h-full w-full bg-stone-100 col-span-6"
-        placeholder="type a message here (and use Ctrl+Enter to send)"
+        class:bg-stone-100={readOnly}
+        placeholder="type a message here (press Enter to send)"
         bind:value={text}
         on:input={saveToLocalStorage}
         readonly={readOnly}
       />
       <div class="col-span-1">
         <button
-          class="h-full w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
+          class="h-full w-full px-4 py-2 text-white rounded transition-colors"
+          class:bg-blue-500={!readOnly}
+          class:hover:bg-blue-400={!readOnly}
+          class:bg-stone-400={readOnly}
           disabled={readOnly || !groupId || !relay}
         >
           send
