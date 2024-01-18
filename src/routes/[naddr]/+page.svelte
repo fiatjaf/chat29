@@ -240,7 +240,7 @@
           {#each messages as message}
             <div
               class="grid gap-2 items-center hover:bg-emerald-100"
-              style="grid-template-columns: fit-content(10%) auto fit-content(10%)"
+              style="grid-template-columns: 120px auto 90px"
               id={`evt-${message.id.substring(-6)}`}
             >
               <div class="self-end">
@@ -250,7 +250,7 @@
                 {message.content}
               </div>
               <div
-                class="flex justify-end text-stone-400 text-xs"
+                class="flex justify-end text-stone-400 text-xs pr-1"
                 title={new Date(message.created_at * 1000).toString()}
               >
                 {humanDate(message.created_at)}
