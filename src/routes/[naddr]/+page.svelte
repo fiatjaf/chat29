@@ -171,7 +171,7 @@
       saveToLocalStorage()
       isSending = false
     } catch (err) {
-      console.log('failed to send', err)
+      console.warn('failed to ask to join', err)
       showToast({type: 'error', text: String(err)})
       isSending = false
     }
@@ -193,7 +193,7 @@
       saveToLocalStorage()
       isSending = false
     } catch (err) {
-      console.log('failed to send', err)
+      console.warn('failed to send', err)
       showToast({type: 'error', text: String(err)})
       isSending = false
     }
@@ -202,18 +202,24 @@
   async function deleteMessage(ev: MouseEvent) {
     const id = (ev.currentTarget as HTMLElement).dataset.id
     if (typeof id === 'string' && confirm('really delete this?')) {
-      publish(
-        {
-          kind: isAdmin ? 9005 : 5,
-          content: '',
-          tags: [
-            ['h', group!.id],
-            ['e', id]
-          ],
-          created_at: Math.round(Date.now() / 1000)
-        },
-        relay.url
-      )
+      try {
+        publish(
+          {
+            kind: isAdmin ? 9005 : 5,
+            content: '',
+            tags: [
+              ['h', group!.id],
+              ['e', id]
+            ],
+            created_at: Math.round(Date.now() / 1000)
+          },
+          relay.url
+        )
+      } catch (err) {
+        console.warn('failed to delete', err)
+        showToast({type: 'error', text: String(err)})
+        isSending = false
+      }
     }
   }
 
@@ -291,8 +297,9 @@
                 class="flex justify-end text-stone-400 text-xs pr-1"
                 title={new Date(message.created_at * 1000).toString()}
               >
-                {#if isAdmin || message.pubkey === pubkey}
-                  <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute a11y-click-events-have-key-events -->
+                {#if message.created_at > Date.now() / 1000 - 60 * 60 * 3 && (isAdmin || message.pubkey === pubkey)}
+                  <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute -->
+                  <!-- svelte-ignore a11y-click-events-have-key-events -->
                   <a
                     class="hover:text-red-600 cursor-pointer"
                     on:click={deleteMessage}
