@@ -5,7 +5,7 @@
   import type {Subscription, Relay} from 'nostr-tools/relay'
 
   import {pool} from '../lib/nostr.ts'
-  import {parseChannel, type Channel} from '../lib/channel.ts'
+  import {parseGroup, type Group} from '../lib/group.ts'
   import Header from '../components/Header.svelte'
 
   let relayUrl = ''
@@ -15,7 +15,7 @@
   let groupId = ''
   let relay: Relay | null = null
   let sub: Subscription
-  let channels: Channel[] = []
+  let channels: Group[] = []
   let info: {pubkey: string; name: string; description: string; icon: string}
 
   const tryConnect = debounce(async () => {
@@ -51,7 +51,7 @@
             ],
             {
               onevent(event: Event) {
-                channels.push(parseChannel(event))
+                channels.push(parseGroup(event))
               },
               oneose() {
                 channels = channels

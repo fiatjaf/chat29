@@ -7,34 +7,35 @@
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
-  import {pool, publish} from '../../lib/nostr.ts'
+  import {pool, publish, signer} from '../../lib/nostr.ts'
   import {showToast, humanDate} from '../../lib/utils.ts'
+  import {
+    parseGroup,
+    parseMembers,
+    type Group,
+    type Member
+  } from '../../lib/group.ts'
   import UserLabel from '../../components/UserLabel.svelte'
   import Header from '../../components/Header.svelte'
+  import MemberLabel from '../../components/MemberLabel.svelte'
 
+  let pubkey: string
   let naddr = $page.params.naddr
-  let groupId: string | null = null
   let messages: Event[] = []
   let text = localStorage.getItem('text') || ''
-  let readOnly = false
+  let isSending = false
   let controlIsDown = false
   let shiftIsDown = false
-  let groupMetadata: {
-    name: string | null
-    picture: string | null
-    about: string
-  } = {
-    name: null,
-    picture: null,
-    about: ''
-  }
+  let group: Group | null = null
+  let admins: Member[] = []
+  let members: Member[] = []
   let info: {pubkey: string; name: string; description: string; icon: string}
   let relay: AbstractRelay
   let sub: Subscription
-  let error: string
   let eoseHappened = false
 
-  $: groupRawName = relay ? `${groupId}@${new URL(relay.url).host}` : ''
+  $: groupRawName = relay ? `${group?.id}@${new URL(relay.url).host}` : ''
+  $: isMember = members.find(m => m.pubkey === pubkey)
 
   const updateMessages = debounce(() => {
     messages = messages
@@ -58,6 +59,9 @@
   }
 
   onMount(() => {
+    signer.getPublicKey().then(pk => {
+      pubkey = pk
+    })
     loadChat()
     return unloadChat
   })
@@ -72,8 +76,7 @@
     if (sub) sub.close()
     eoseHappened = false
     messages = []
-    groupMetadata = {name: null, picture: null, about: ''}
-    groupId = null
+    group = null
   }
 
   async function loadChat() {
@@ -87,7 +90,7 @@
       if (!relays || relays.length === 0) return
 
       let relayUrl = relays![0]
-      groupId = identifier
+      group = {id: identifier}
 
       relay = await pool.ensureRelay(relayUrl)
       info = await fetch(relayUrl.replace('ws', 'http'), {
@@ -96,24 +99,20 @@
 
       sub = relay.subscribe(
         [
-          {kinds: [9], '#h': [groupId], limit: 700},
-          {kinds: [39000], '#d': [groupId]}
+          {kinds: [9], '#h': [identifier], limit: 700},
+          {kinds: [39000, 39001, 39002], '#d': [identifier]}
         ],
         {
           onevent(event) {
             switch (event.kind) {
               case 39000:
-                event.tags.forEach(tag => {
-                  switch (tag[0]) {
-                    case 'name':
-                      if (tag[1] && tag[1].trim().length > 0)
-                        groupMetadata.name = tag[1].trim()
-                    case 'picture':
-                      if (tag[1]) groupMetadata.picture = tag[1]
-                    case 'about':
-                      if (tag[1]) groupMetadata.picture = tag[1]
-                  }
-                })
+                group = parseGroup(event)
+                break
+              case 39001:
+                admins = parseMembers(event)
+                break
+              case 39002:
+                members = parseMembers(event)
                 break
               case 9:
                 messages.push(event as any)
@@ -132,29 +131,51 @@
         }
       )
     } catch (err: any) {
-      error = err.message
+      showToast({type: 'error', text: err.message})
     }
   }
 
-  async function sendMessage() {
+  async function askToJoin() {
     try {
-      readOnly = true
+      isSending = true
       await publish(
         {
-          kind: 9,
-          content: text,
-          tags: [['h', groupId!]],
+          kind: 9021,
+          content: '',
+          tags: [['h', group!.id]],
           created_at: Math.round(Date.now() / 1000)
         },
         relay.url
       )
       text = ''
       saveToLocalStorage()
-      readOnly = false
+      isSending = false
     } catch (err) {
       console.log('failed to send', err)
       showToast({type: 'error', text: String(err)})
-      readOnly = false
+      isSending = false
+    }
+  }
+
+  async function sendMessage() {
+    try {
+      isSending = true
+      await publish(
+        {
+          kind: 9,
+          content: text,
+          tags: [['h', group!.id]],
+          created_at: Math.round(Date.now() / 1000)
+        },
+        relay.url
+      )
+      text = ''
+      saveToLocalStorage()
+      isSending = false
+    } catch (err) {
+      console.log('failed to send', err)
+      showToast({type: 'error', text: String(err)})
+      isSending = false
     }
   }
 
@@ -194,72 +215,101 @@
 
 <svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
-<header class="pb-8 h-1/6">
-  <div><Header /></div>
-  <div class="flex items-center">
-    <div class="text-sm w-1/12 text-right">room</div>
-    <div
-      class="text-emerald-600 text-lg mx-4 w-8/12 overflow-hidden text-ellipsis"
-    >
-      {groupMetadata.name || groupRawName || $page.params.naddr}
-    </div>
-    <div class="text-xs text-stone-400 w-3/12 text-right">{groupRawName}</div>
-  </div>
-</header>
-{#if error}
-  <section class="w-full flex justify-center items-center h-4/5 text-xl">
-    {error}
-  </section>
-{:else}
-  <section class="row-span-9 overflow-y-auto h-4/6">
-    <div class="flex flex-col">
-      <div class="h-full overflow-auto">
-        {#each messages as message}
-          <div
-            class="grid grid-cols-12 gap-2 items-center hover:bg-emerald-100"
-            id={`evt-${message.id.substring(-6)}`}
-          >
-            <div class="col-start-1 col-span-2">
-              <UserLabel imgClass="max-h-3.5" pubkey={message.pubkey} />
-            </div>
-            <div class="col-start-auto col-span-8">
-              {message.content}
-            </div>
-            <div
-              class="col-start-auto col-span-2 flex justify-end text-stone-400 text-xs"
-              title={new Date(message.created_at * 1000).toString()}
-            >
-              {humanDate(message.created_at)}
-            </div>
-          </div>
-        {/each}
-      </div>
-    </div>
-  </section>
-  <section class="h-1/6">
-    <form
-      on:submit={sendMessage}
-      class="grid grid-cols-7 gap-2 pt-4 mb-2 h-full py-4"
-    >
-      <textarea
-        class="h-full w-full bg-stone-100 col-span-6"
-        class:bg-stone-100={readOnly}
-        placeholder="type a message here (press Enter to send)"
-        bind:value={text}
-        on:input={saveToLocalStorage}
-        readonly={readOnly}
-      />
-      <div class="col-span-1">
-        <button
-          class="h-full w-full px-4 py-2 text-white rounded transition-colors"
-          class:bg-blue-500={!readOnly}
-          class:hover:bg-blue-400={!readOnly}
-          class:bg-stone-400={readOnly}
-          disabled={readOnly || !groupId || !relay}
+<div class="grid grid-cols-1 lg:grid-cols-7 h-full">
+  <main class="col-span-1 lg:col-span-6 h-full">
+    <header class="pb-8 h-1/6">
+      <Header />
+      <div class="flex items-center">
+        <div class="text-sm">room</div>
+        <div
+          class="text-emerald-600 text-lg mx-4 overflow-hidden text-ellipsis"
         >
-          send
-        </button>
+          {group?.name || groupRawName || $page.params.naddr}
+        </div>
+        <div class="text-xs text-stone-400">
+          {groupRawName}
+        </div>
       </div>
-    </form>
-  </section>
-{/if}
+    </header>
+    <section class="row-span-9 overflow-y-auto h-4/6">
+      <div class="flex flex-col">
+        <div class="h-full overflow-auto">
+          {#each messages as message}
+            <div
+              class="grid grid-cols-12 gap-2 items-center hover:bg-emerald-100"
+              id={`evt-${message.id.substring(-6)}`}
+            >
+              <div class="col-start-1 col-span-2">
+                <UserLabel imgClass="max-h-3.5" pubkey={message.pubkey} />
+              </div>
+              <div class="col-start-auto col-span-8">
+                {message.content}
+              </div>
+              <div
+                class="col-start-auto col-span-2 flex justify-end text-stone-400 text-xs"
+                title={new Date(message.created_at * 1000).toString()}
+              >
+                {humanDate(message.created_at)}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </section>
+    <section class="h-1/6">
+      {#if isMember}
+        <form
+          on:submit={sendMessage}
+          class="grid grid-cols-7 gap-2 pt-4 mb-2 h-full py-4"
+        >
+          <textarea
+            class="h-full w-full bg-stone-100 col-span-6"
+            class:bg-stone-100={isSending}
+            placeholder={isSending
+              ? 'submitting...'
+              : !isMember
+              ? 'you are not a member of this group'
+              : 'type a message here (press Enter to send)'}
+            bind:value={text}
+            on:input={saveToLocalStorage}
+            readonly={isSending}
+          />
+          <div class="col-span-1">
+            <button
+              class="h-full w-full px-4 py-2 text-white rounded transition-colors"
+              class:bg-blue-500={!isSending}
+              class:hover:bg-blue-400={!isSending}
+              class:bg-stone-400={isSending}
+              disabled={isSending || !group?.id || !relay}
+            >
+              send
+            </button>
+          </div>
+        </form>
+      {:else if group?.public}
+        <div class="m-8 w-full">
+          <button
+            class="p-8 h-full w-full text-2xl bg-blue-500 hover:bg-blue-400 text-white rounded transition-colors"
+            on:click={askToJoin}
+            disabled={isSending}>join</button
+          >
+        </div>
+      {:else}
+        <p class="p-8">you are not a member of this group</p>
+      {/if}
+    </section>
+  </main>
+  <aside class="col-span-0 hidden lg:block lg:col-span-1">
+    <h2 class="text-center pt-2 pb-4 text-xl text-emerald-800">members</h2>
+    <div class="pl-4">
+      <h3 class="text-lg">admins</h3>
+      {#each admins as admin}
+        <MemberLabel member={admin} />
+      {/each}
+      <h3 class="pt-2 text-lg">members</h3>
+      {#each members as member}
+        <MemberLabel {member} />
+      {/each}
+    </div>
+  </aside>
+</div>

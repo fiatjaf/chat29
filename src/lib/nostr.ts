@@ -4,9 +4,9 @@ import {
   type Event,
   verifyEvent
 } from 'nostr-tools/wasm'
-import {readable} from 'svelte/store'
 import {AbstractSimplePool} from 'nostr-tools/abstract-pool'
 import {initNostrWasm} from 'nostr-wasm'
+import {readable} from 'svelte/store'
 
 export type Metadata = {
   pubkey: string
