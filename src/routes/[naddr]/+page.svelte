@@ -36,6 +36,7 @@
 
   $: groupRawName = relay ? `${group?.id}@${new URL(relay.url).host}` : ''
   $: isMember = members.find(m => m.pubkey === pubkey)
+  $: isAdmin = admins.find(m => m.pubkey === pubkey)
 
   const updateMessages = debounce(() => {
     messages = messages
@@ -100,7 +101,13 @@
       sub = relay.subscribe(
         [
           {kinds: [9], '#h': [identifier], limit: 700},
-          {kinds: [39000, 39001, 39002], '#d': [identifier]}
+          {kinds: [39000, 39001, 39002], '#d': [identifier]},
+          {
+            kinds: [9005],
+            '#h': [identifier],
+            limit: 0,
+            since: Math.round(Date.now() / 1000)
+          }
         ],
         {
           onevent(event) {
@@ -117,6 +124,19 @@
               case 9:
                 messages.push(event as any)
                 if (eoseHappened) updateMessages()
+                break
+              case 9005:
+              case 5:
+                for (let i = 0; i < event.tags.length; i++) {
+                  let tag = event.tags[i]
+                  if (tag.length < 2 || tag[0] !== 'e') continue
+                  let id = tag[1]
+                  let idx = messages.findIndex(m => m.id === id)
+                  if (idx !== -1) {
+                    messages.splice(idx, 1)
+                  }
+                }
+                messages = messages
                 break
             }
           },
@@ -179,6 +199,24 @@
     }
   }
 
+  async function deleteMessage(ev: MouseEvent) {
+    const id = (ev.currentTarget as HTMLElement).dataset.id
+    if (typeof id === 'string' && confirm('really delete this?')) {
+      publish(
+        {
+          kind: isAdmin ? 9005 : 5,
+          content: '',
+          tags: [
+            ['h', group!.id],
+            ['e', id]
+          ],
+          created_at: Math.round(Date.now() / 1000)
+        },
+        relay.url
+      )
+    }
+  }
+
   function onKeyDown(ev: KeyboardEvent) {
     if (ev.repeat) return
     switch (ev.key) {
@@ -237,10 +275,10 @@
     <section class="row-span-9 overflow-y-auto pr-4">
       <div class="flex flex-col h-full">
         <div class="h-full overflow-x-hidden overflow-y-auto">
-          {#each messages as message}
+          {#each messages as message (message.id)}
             <div
-              class="grid gap-2 items-center hover:bg-emerald-100"
-              style="grid-template-columns: 120px auto 90px"
+              class="grid gap-2 items-center hover:bg-emerald-100 group"
+              style="grid-template-columns: 120px auto 99px"
               id={`evt-${message.id.substring(-6)}`}
             >
               <div class="self-end">
@@ -253,6 +291,15 @@
                 class="flex justify-end text-stone-400 text-xs pr-1"
                 title={new Date(message.created_at * 1000).toString()}
               >
+                {#if isAdmin || message.pubkey === pubkey}
+                  <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute a11y-click-events-have-key-events -->
+                  <a
+                    class="hover:text-red-600 cursor-pointer"
+                    on:click={deleteMessage}
+                    data-id={message.id}>×</a
+                  >
+                  &nbsp;
+                {/if}
                 {humanDate(message.created_at)}
               </div>
             </div>
