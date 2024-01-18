@@ -215,12 +215,12 @@
 
 <svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
-<div class="grid grid-cols-1 lg:grid-cols-7 h-full">
+<div class="grid grid-cols-1 md:grid-cols-7 h-full">
   <main
-    class="grid col-span-1 lg:col-span-6 h-full"
-    style="grid-template-rows: 6vh 80vh 9vh;"
+    class="grid col-span-1 md:col-span-6 h-full"
+    style="grid-template-rows: min-content 75vh min-content;"
   >
-    <header class="pb-8">
+    <header class="pb-8 bg-white min-h-min">
       <Header />
       <div class="flex items-center">
         <div class="text-sm">room</div>
@@ -236,17 +236,17 @@
     </header>
     <section class="row-span-9 overflow-y-auto pr-4">
       <div class="flex flex-col h-full">
-        <div class="h-full overflow-auto">
+        <div class="h-full overflow-x-hidden overflow-y-auto">
           {#each messages as message}
             <div
               class="grid gap-2 items-center hover:bg-emerald-100"
               style="grid-template-columns: fit-content(10%) auto fit-content(10%)"
               id={`evt-${message.id.substring(-6)}`}
             >
-              <div>
+              <div class="self-end">
                 <UserLabel pubkey={message.pubkey} />
               </div>
-              <div>
+              <div class="break-all">
                 {message.content}
               </div>
               <div
@@ -303,7 +303,7 @@
       {/if}
     </section>
   </main>
-  <aside class="col-span-0 hidden lg:block lg:col-span-1">
+  <aside class="col-span-0 hidden md:block md:col-span-1">
     <h2 class="text-center pt-2 pb-4 text-xl text-emerald-800">members</h2>
     <div class="pl-4">
       <h3 class="text-lg">admins</h3>
