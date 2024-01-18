@@ -5,7 +5,6 @@
   import {getMetadata, type Metadata} from '../lib/nostr.ts'
 
   export let pubkey: string
-  export let imgClass: string = ''
   let metadata: Metadata
   let npub = nip19.npubEncode(pubkey)
 
@@ -20,14 +19,29 @@
   })
 </script>
 
-<div class="grid grid-cols-4 items-center">
-  <div class="col-start-1 col-span-1 px-2 flex items-center justify-end">
+<!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
+<div
+  class="flex items-center cursor-pointer"
+  on:click={() => window.open('https://nosta.me/' + pubkey)}
+  title={npub}
+>
+  <div class="h-6 mr-1">
     {#if picture}
-      <img class={imgClass} src={picture} alt="user avatar" />&nbsp;
+      <img
+        class="aspect-square h-full border border-stone-300 object-cover"
+        src={picture}
+        alt="user avatar"
+      />&nbsp;
+    {:else}
+      <img
+        class="aspect-square h-full border border-stone-300 object-cover"
+        alt="empty user avatar"
+        src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+      />
     {/if}
   </div>
   <div
-    class="text-ellipsis overflow-hidden col-start-2 col-span-3 text-rose-700 text-lg pl-1"
+    class="text-ellipsis overflow-hidden text-rose-700 text-lg pl-1"
     title={npub}
   >
     {name}

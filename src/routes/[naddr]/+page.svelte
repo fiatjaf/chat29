@@ -216,8 +216,11 @@
 <svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
 <div class="grid grid-cols-1 lg:grid-cols-7 h-full">
-  <main class="col-span-1 lg:col-span-6 h-full">
-    <header class="pb-8 h-1/6">
+  <main
+    class="grid col-span-1 lg:col-span-6 h-full"
+    style="grid-template-rows: 6vh 80vh 9vh;"
+  >
+    <header class="pb-8">
       <Header />
       <div class="flex items-center">
         <div class="text-sm">room</div>
@@ -231,22 +234,23 @@
         </div>
       </div>
     </header>
-    <section class="row-span-9 overflow-y-auto h-4/6">
-      <div class="flex flex-col">
+    <section class="row-span-9 overflow-y-auto pr-4">
+      <div class="flex flex-col h-full">
         <div class="h-full overflow-auto">
           {#each messages as message}
             <div
-              class="grid grid-cols-12 gap-2 items-center hover:bg-emerald-100"
+              class="grid gap-2 items-center hover:bg-emerald-100"
+              style="grid-template-columns: fit-content(10%) auto fit-content(10%)"
               id={`evt-${message.id.substring(-6)}`}
             >
-              <div class="col-start-1 col-span-2">
-                <UserLabel imgClass="max-h-3.5" pubkey={message.pubkey} />
+              <div>
+                <UserLabel pubkey={message.pubkey} />
               </div>
-              <div class="col-start-auto col-span-8">
+              <div>
                 {message.content}
               </div>
               <div
-                class="col-start-auto col-span-2 flex justify-end text-stone-400 text-xs"
+                class="flex justify-end text-stone-400 text-xs"
                 title={new Date(message.created_at * 1000).toString()}
               >
                 {humanDate(message.created_at)}
@@ -256,11 +260,11 @@
         </div>
       </div>
     </section>
-    <section class="h-1/6">
+    <section>
       {#if isMember}
         <form
           on:submit={sendMessage}
-          class="grid grid-cols-7 gap-2 pt-4 mb-2 h-full py-4"
+          class="grid grid-cols-7 pt-4 mb-2 h-full py-4"
         >
           <textarea
             class="h-full w-full bg-stone-100 col-span-6"
@@ -274,7 +278,7 @@
             on:input={saveToLocalStorage}
             readonly={isSending}
           />
-          <div class="col-span-1">
+          <div class="col-span-1 pl-2">
             <button
               class="h-full w-full px-4 py-2 text-white rounded transition-colors"
               class:bg-blue-500={!isSending}

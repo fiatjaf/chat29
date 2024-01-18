@@ -51,7 +51,6 @@ export function parseMembers(event: Event): Member[] {
     if (tag.length < 2) continue
     if (tag[0] !== 'p') continue
     if (!tag[1].match(/^[0-9a-f]{64}$/)) continue
-    console.log('!', tag)
     const member: Member = {pubkey: tag[1], permissions: []}
     if (tag.length > 2) member.label = tag[2]
     if (tag.length > 3) member.permissions = tag.slice(3)

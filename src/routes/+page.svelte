@@ -122,6 +122,7 @@
     {#each channels as channel}
       <div class="mt-8 pl-4 max-h-64">
         <div class="flex">
+          <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
           <div
             class="cursor-pointer hover:underline"
             on:click={() => {
