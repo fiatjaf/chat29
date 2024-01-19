@@ -7,9 +7,11 @@ import {
 import {AbstractSimplePool} from 'nostr-tools/abstract-pool'
 import {initNostrWasm} from 'nostr-wasm'
 import {readable} from 'svelte/store'
+import type {Group} from './group.ts'
 
 export type Metadata = {
   pubkey: string
+  groups: Group[]
   name?: string
   display_name?: string
   nip05?: string
@@ -35,20 +37,30 @@ export const signer = {
     const se: Event = await (window as any).nostr.signEvent(event)
     setAccount(await getMetadata(se.pubkey))
     return se
+  },
+  signOut: (): void => {
+    removeAccount()
   }
 }
 
 let setAccount: (_: Metadata) => void
+let removeAccount: () => void
 export const account = readable<Metadata | null>(null, set => {
   setAccount = (account: Metadata) => {
     localStorage.setItem('loggedin', JSON.stringify(account))
     set(account)
   }
+  removeAccount = () => {
+    localStorage.removeItem('loggedin')
+    set(null)
+  }
 
   // try to load account from localStorage on startup
   const data = localStorage.getItem('loggedin')
   try {
-    set(JSON.parse(data || ''))
+    const account: Metadata = JSON.parse(data || '')
+    if (!account.groups) account.groups = []
+    set(account)
   } catch (err) {
     /***/
   }
@@ -75,7 +87,7 @@ export async function getMetadata(pubkey: string): Promise<Metadata> {
 
   // TODO: use dexie as a second-level cache
 
-  let metadata = {pubkey, nip05valid: false}
+  let metadata = {pubkey, nip05valid: false, groups: []}
   try {
     const event = await pool.get(profileRelays, {kinds: [0], authors: [pubkey]})
     metadata = {...JSON.parse(event!.content), ...metadata}

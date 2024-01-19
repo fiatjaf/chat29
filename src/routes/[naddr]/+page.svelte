@@ -7,7 +7,9 @@
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
-  import {pool, publish, signer} from '../../lib/nostr.ts'
+
+  import {account} from '../../lib/nostr.ts'
+  import {pool, publish} from '../../lib/nostr.ts'
   import {showToast, humanDate} from '../../lib/utils.ts'
   import {
     parseGroup,
@@ -19,7 +21,6 @@
   import Header from '../../components/Header.svelte'
   import MemberLabel from '../../components/MemberLabel.svelte'
 
-  let pubkey: string
   let naddr = $page.params.naddr
   let messages: Event[] = []
   let text = localStorage.getItem('text') || ''
@@ -35,8 +36,8 @@
   let eoseHappened = false
 
   $: groupRawName = relay ? `${group?.id}@${new URL(relay.url).host}` : ''
-  $: isMember = !!members.find(m => m.pubkey === pubkey)
-  $: isAdmin = !!admins.find(m => m.pubkey === pubkey)
+  $: isMember = !!members.find(m => m.pubkey === $account?.pubkey)
+  $: isAdmin = !!admins.find(m => m.pubkey === $account?.pubkey)
 
   const updateMessages = debounce(() => {
     messages = messages
@@ -60,9 +61,6 @@
   }
 
   onMount(() => {
-    signer.getPublicKey().then(pk => {
-      pubkey = pk
-    })
     loadChat()
     return unloadChat
   })
@@ -285,32 +283,55 @@
 
 <svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
-<div class="grid grid-cols-1 md:grid-cols-7 h-full">
-  <main
-    class="grid col-span-1 md:col-span-6 h-full"
-    style="grid-template-rows: min-content 75vh min-content;"
-  >
-    <header class="pb-8 bg-white min-h-min">
-      <Header />
-      <div class="flex items-center">
-        <div class="text-sm">room</div>
-        <div
-          class="text-emerald-600 text-lg mx-4 overflow-hidden text-ellipsis"
-        >
-          {group?.name || groupRawName || $page.params.naddr}
-        </div>
-        <div class="text-xs text-stone-400">
-          {groupRawName}
-        </div>
+<div
+  class="h-full grid gap-2"
+  style:grid-template-areas={`
+    "header header"
+    "chat members"
+  `}
+  style:grid-template-rows="fit-content(20%) auto"
+  style:grid-template-columns="auto fit-content(10%)"
+>
+  <header class="pb-3 h-full bg-white" style:grid-area="header">
+    <Header />
+    <div class="flex items-center justify-end mt-4">
+      <div class="text-sm">room</div>
+      <div class="text-emerald-600 text-lg mx-4 overflow-hidden text-ellipsis">
+        {group?.name || groupRawName || $page.params.naddr}
       </div>
-    </header>
+      <div class="text-xs text-stone-400">
+        {groupRawName}
+      </div>
+    </div>
+  </header>
+  <aside style:grid-area="members">
+    <div class="pl-4">
+      <h3 class="text-lg text-emerald-600">admins</h3>
+      {#each admins as admin}
+        <MemberLabel member={admin} />
+      {/each}
+      <h3 class="pt-2 text-lg text-emerald-600">members</h3>
+      {#each members as member}
+        <MemberLabel
+          {member}
+          canBan={isAdmin && member.pubkey !== $account?.pubkey}
+          on:ban={banMember}
+        />
+      {/each}
+    </div>
+  </aside>
+  <main
+    style:grid-area="chat"
+    class="grid h-full"
+    style:grid-template-rows="75vh min-content"
+  >
     <section class="row-span-9 overflow-y-auto pr-4">
       <div class="flex flex-col h-full">
         <div class="h-full overflow-x-hidden overflow-y-auto">
           {#each messages as message (message.id)}
             <div
               class="grid gap-2 items-center hover:bg-emerald-100 group"
-              style="grid-template-columns: 120px auto 99px"
+              style:grid-template-columns="120px auto 99px"
               id={`evt-${message.id.substring(-6)}`}
             >
               <div class="self-end">
@@ -320,7 +341,7 @@
                 {message.content}
               </div>
               <div class="flex justify-end text-stone-400 text-xs pr-1">
-                {#if message.created_at > Date.now() / 1000 - 60 * 60 * 3 && (isAdmin || message.pubkey === pubkey)}
+                {#if message.created_at > Date.now() / 1000 - 60 * 60 * 3 && (isAdmin || message.pubkey === $account?.pubkey)}
                   <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute -->
                   <!-- svelte-ignore a11y-click-events-have-key-events -->
                   <a
@@ -372,7 +393,7 @@
             </button>
           </div>
         </form>
-      {:else if group?.public}
+      {:else if group?.public && $account}
         <div class="m-8 w-full">
           <button
             class="p-8 h-full w-full text-2xl bg-blue-500 hover:bg-blue-400 text-white rounded transition-colors"
@@ -381,25 +402,10 @@
           >
         </div>
       {:else}
-        <p class="p-8">you are not a member of this group</p>
+        <p class="p-6 text-center border border-stone-200 m-2">
+          you are not a member of this group
+        </p>
       {/if}
     </section>
   </main>
-  <aside class="col-span-0 hidden md:block md:col-span-1">
-    <h2 class="text-center pt-2 pb-4 text-xl text-emerald-800">members</h2>
-    <div class="pl-4">
-      <h3 class="text-lg">admins</h3>
-      {#each admins as admin}
-        <MemberLabel member={admin} />
-      {/each}
-      <h3 class="pt-2 text-lg">members</h3>
-      {#each members as member}
-        <MemberLabel
-          {member}
-          canBan={isAdmin && member.pubkey !== pubkey}
-          on:ban={banMember}
-        />
-      {/each}
-    </div>
-  </aside>
 </div>

@@ -4,9 +4,10 @@
   import type {Event} from 'nostr-tools/pure'
   import type {Subscription, Relay} from 'nostr-tools/relay'
 
-  import {pool} from '../lib/nostr.ts'
+  import {pool, signer} from '../lib/nostr.ts'
   import {parseGroup, type Group} from '../lib/group.ts'
   import Header from '../components/Header.svelte'
+  import {account} from '../lib/nostr.ts'
 
   let relayUrl = ''
   let connecting = false
@@ -101,7 +102,7 @@
 <h1 class="text-2xl h-1/6">
   <Header />
 </h1>
-<div class="grid grid-cols-7 gap-2">
+<div class="grid grid-cols-9 gap-2">
   <column class="col-span-3">
     <div class="mt-4">
       type relay url: <input bind:value={relayUrl} on:input={tryConnect} />
@@ -119,23 +120,25 @@
       {/if}
     </div>
 
-    {#each channels as channel}
-      <div class="mt-8 pl-4 max-h-64">
-        <div class="flex">
-          <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
-          <div
-            class="cursor-pointer hover:underline"
-            on:click={() => {
-              groupId = channel.id
-              encode()
-            }}
-          >
-            {channel.id}
+    <div class="mt-4">
+      {#each channels as channel}
+        <div class="mt-1 pl-4 max-h-64">
+          <div class="flex">
+            <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
+            <div
+              class="cursor-pointer hover:underline text-blue-700"
+              on:click={() => {
+                groupId = channel.id
+                encode()
+              }}
+            >
+              {channel.id}
+            </div>
+            <div class="ml-4 text-stone-600">{channel.name}</div>
           </div>
-          <div class="ml-4">{channel.name}</div>
         </div>
-      </div>
-    {/each}
+      {/each}
+    </div>
 
     {#if relay}
       <div class="mt-4">
@@ -155,7 +158,7 @@
   <column class="col-span-1 flex items-center justify-center uppercase text-2xl"
     >or</column
   >
-  <column class="col-span-3">
+  <column class="col-span-2">
     <div class="mt-4 flex items-center">
       type a group code: <textarea
         class="ml-2 h-48"
@@ -163,5 +166,12 @@
         on:input={parse}
       />
     </div>
+  </column>
+  <column class="col-span-3">
+    {#if $account}
+      {#each $account.groups as group (group.id)}
+        <div class="grid" style="grid-template-areas: '';">{group.id}</div>
+      {/each}
+    {/if}
   </column>
 </div>
