@@ -35,8 +35,8 @@
   let eoseHappened = false
 
   $: groupRawName = relay ? `${group?.id}@${new URL(relay.url).host}` : ''
-  $: isMember = members.find(m => m.pubkey === pubkey)
-  $: isAdmin = admins.find(m => m.pubkey === pubkey)
+  $: isMember = !!members.find(m => m.pubkey === pubkey)
+  $: isAdmin = !!admins.find(m => m.pubkey === pubkey)
 
   const updateMessages = debounce(() => {
     messages = messages
@@ -201,7 +201,7 @@
 
   async function deleteMessage(ev: MouseEvent) {
     const id = (ev.currentTarget as HTMLElement).dataset.id
-    if (typeof id === 'string' && confirm('really delete this?')) {
+    if (typeof id === 'string' && confirm('really delete this message?')) {
       try {
         publish(
           {
@@ -218,7 +218,33 @@
       } catch (err) {
         console.warn('failed to delete', err)
         showToast({type: 'error', text: String(err)})
-        isSending = false
+      }
+    }
+  }
+
+  async function banMember(ev: CustomEvent) {
+    const member: Member = ev.detail.member
+    if (member && confirm('really ban this user?')) {
+      try {
+        publish(
+          {
+            kind: 9001,
+            content: '',
+            tags: [
+              ['h', group!.id],
+              ['p', member.pubkey]
+            ],
+            created_at: Math.round(Date.now() / 1000)
+          },
+          relay.url
+        )
+        showToast({
+          type: 'success',
+          text: 'successfully banned ' + member.pubkey
+        })
+      } catch (err) {
+        console.warn('failed to ban', err)
+        showToast({type: 'error', text: String(err)})
       }
     }
   }
@@ -293,21 +319,23 @@
               <div class="break-all">
                 {message.content}
               </div>
-              <div
-                class="flex justify-end text-stone-400 text-xs pr-1"
-                title={new Date(message.created_at * 1000).toString()}
-              >
+              <div class="flex justify-end text-stone-400 text-xs pr-1">
                 {#if message.created_at > Date.now() / 1000 - 60 * 60 * 3 && (isAdmin || message.pubkey === pubkey)}
                   <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute -->
                   <!-- svelte-ignore a11y-click-events-have-key-events -->
                   <a
                     class="hover:text-red-600 cursor-pointer"
                     on:click={deleteMessage}
-                    data-id={message.id}>×</a
+                    data-id={message.id}
+                    title="delete message"
                   >
+                    ×
+                  </a>
                   &nbsp;
                 {/if}
-                {humanDate(message.created_at)}
+                <span title={new Date(message.created_at * 1000).toString()}>
+                  {humanDate(message.created_at)}
+                </span>
               </div>
             </div>
           {/each}
@@ -366,7 +394,11 @@
       {/each}
       <h3 class="pt-2 text-lg">members</h3>
       {#each members as member}
-        <MemberLabel {member} />
+        <MemberLabel
+          {member}
+          canBan={isAdmin && member.pubkey !== pubkey}
+          on:ban={banMember}
+        />
       {/each}
     </div>
   </aside>
