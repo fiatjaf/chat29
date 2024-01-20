@@ -1,13 +1,13 @@
 <script lang="ts">
   import debounce from 'debounce'
   import * as nip19 from 'nostr-tools/nip19'
-  import type {Event} from 'nostr-tools/pure'
+  import type {Event} from 'nostr-tools/wasm'
   import type {Subscription, Relay} from 'nostr-tools/relay'
+  import {parseGroup, type Group} from 'nostr-tools/nip29'
 
-  import {pool, signer} from '../lib/nostr.ts'
-  import {parseGroup, type Group} from '../lib/group.ts'
+  import {pool} from '../lib/nostr.ts'
   import Header from '../components/Header.svelte'
-  import {account} from '../lib/nostr.ts'
+  import GroupsList from '../components/GroupsList.svelte'
 
   let relayUrl = ''
   let connecting = false
@@ -39,6 +39,7 @@
     relay = null
     connecting = true
     failed = false
+    let eosed = true
     try {
       await Promise.all([
         pool.ensureRelay(normalized).then(rl => {
@@ -53,9 +54,11 @@
             {
               onevent(event: Event) {
                 channels.push(parseGroup(event))
+                if (eosed) channels = channels
               },
               oneose() {
                 channels = channels
+                eosed = true
               }
             }
           )
@@ -102,8 +105,11 @@
 <h1 class="text-2xl h-1/6">
   <Header />
 </h1>
-<div class="grid grid-cols-9 gap-2">
-  <column class="col-span-3">
+<div class="flex">
+  <column class="mr-8">
+    <GroupsList />
+  </column>
+  <column class="">
     <div class="mt-4">
       type relay url: <input bind:value={relayUrl} on:input={tryConnect} />
     </div>
@@ -155,10 +161,8 @@
       {/if}
     </div>
   </column>
-  <column class="col-span-1 flex items-center justify-center uppercase text-2xl"
-    >or</column
-  >
-  <column class="col-span-2">
+  <div class="flex items-center justify-center uppercase text-2xl mx-4">or</div>
+  <column class="">
     <div class="mt-4 flex items-center">
       type a group code: <textarea
         class="ml-2 h-48"
@@ -166,12 +170,5 @@
         on:input={parse}
       />
     </div>
-  </column>
-  <column class="col-span-3">
-    {#if $account}
-      {#each $account.groups as group (group.id)}
-        <div class="grid" style="grid-template-areas: '';">{group.id}</div>
-      {/each}
-    {/if}
   </column>
 </div>

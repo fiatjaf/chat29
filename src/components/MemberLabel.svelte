@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type {Member} from '../lib/group.ts'
+  import type {Member} from 'nostr-tools/nip29'
   import UserLabel from './UserLabel.svelte'
   import {createEventDispatcher} from 'svelte'
 

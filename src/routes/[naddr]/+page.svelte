@@ -1,9 +1,15 @@
 <script lang="ts">
-  import type {Event} from 'nostr-tools/pure'
-  import type {AbstractRelay, Subscription} from 'nostr-tools/abstract-relay'
-  import * as nip19 from 'nostr-tools/nip19'
   import {onMount} from 'svelte'
   import {debounce} from 'debounce'
+  import type {Event} from 'nostr-tools/wasm'
+  import type {AbstractRelay, Subscription} from 'nostr-tools/abstract-relay'
+  import * as nip19 from 'nostr-tools/nip19'
+  import {
+    parseGroup,
+    parseMembers,
+    type Group,
+    type Member
+  } from 'nostr-tools/nip29'
 
   import {afterNavigate} from '$app/navigation'
   import {page} from '$app/stores'
@@ -11,15 +17,10 @@
   import {account} from '../../lib/nostr.ts'
   import {pool, publish} from '../../lib/nostr.ts'
   import {showToast, humanDate} from '../../lib/utils.ts'
-  import {
-    parseGroup,
-    parseMembers,
-    type Group,
-    type Member
-  } from '../../lib/group.ts'
   import UserLabel from '../../components/UserLabel.svelte'
   import Header from '../../components/Header.svelte'
   import MemberLabel from '../../components/MemberLabel.svelte'
+  import GroupsList from '../../components/GroupsList.svelte'
 
   let naddr = $page.params.naddr
   let messages: Event[] = []
@@ -112,6 +113,7 @@
             switch (event.kind) {
               case 39000:
                 group = parseGroup(event)
+                group.relay = relay.url
                 break
               case 39001:
                 admins = parseMembers(event)
@@ -149,7 +151,7 @@
         }
       )
     } catch (err: any) {
-      showToast({type: 'error', text: err.message})
+      showToast({type: 'error', text: err?.message || String(err)})
     }
   }
 
@@ -286,11 +288,11 @@
 <div
   class="h-full grid gap-2"
   style:grid-template-areas={`
-    "header header"
-    "chat members"
+    "header header header"
+    "groups chat members"
   `}
   style:grid-template-rows="fit-content(20%) auto"
-  style:grid-template-columns="auto fit-content(10%)"
+  style:grid-template-columns="fit-content(10%) auto fit-content(10%)"
 >
   <header class="pb-3 h-full bg-white" style:grid-area="header">
     <Header />
@@ -304,6 +306,9 @@
       </div>
     </div>
   </header>
+  <aside style:grid-area="groups">
+    <GroupsList current={isMember ? group : null} />
+  </aside>
   <aside style:grid-area="members">
     <div class="pl-4">
       <h3 class="text-lg text-emerald-600">admins</h3>
