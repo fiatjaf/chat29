@@ -25,19 +25,19 @@ initNostrWasm().then(setNostrWasm)
 
 export const pool = new AbstractSimplePool({verifyEvent})
 
-const _metadataCache = new Map<string, Metadata>()
+const _metadataCache = new Map<string, Promise<Metadata>>()
 
 export const signer = {
   getPublicKey: async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pubkey = await (window as any).nostr.getPublicKey()
-    setAccount(await getMetadata(pubkey))
+    initializeAccount(pubkey)
     return pubkey
   },
   signEvent: async (event: EventTemplate): Promise<Event> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const se: Event = await (window as any).nostr.signEvent(event)
-    setAccount(await getMetadata(se.pubkey))
+    initializeAccount(se.pubkey)
     return se
   },
   signOut: (): void => {
@@ -45,10 +45,23 @@ export const signer = {
   }
 }
 
-let setAccount: (_: Metadata) => Promise<void>
 let removeAccount: () => void
+let initializeAccount: (pubkey: string) => Promise<void>
 export const account = readable<Metadata | null>(null, set => {
-  setAccount = async (account: Metadata) => {
+  let isInitialized = false
+
+  removeAccount = () => {
+    isInitialized = false
+    localStorage.removeItem('loggedin')
+    set(null)
+  }
+
+  initializeAccount = async (pubkey: string) => {
+    if (isInitialized) return
+    isInitialized = true
+
+    const account = await getMetadata(pubkey)
+
     localStorage.setItem('loggedin', JSON.stringify(account))
     set(account)
 
@@ -68,17 +81,13 @@ export const account = readable<Metadata | null>(null, set => {
       }
     )
   }
-  removeAccount = () => {
-    localStorage.removeItem('loggedin')
-    set(null)
-  }
 
   // try to load account from localStorage on startup
   const data = localStorage.getItem('loggedin')
   try {
     const account: Metadata = JSON.parse(data || '')
     if (!account.groups) account.groups = []
-    setAccount(account)
+    set(account)
   } catch (err) {
     /***/
   }
@@ -107,9 +116,7 @@ export async function publish(
   unsignedEvent: EventTemplate,
   relay: string | string[]
 ): Promise<void> {
-  console.log('unsigned', unsignedEvent)
   const event = await signer.signEvent(unsignedEvent)
-  console.log('signed', event)
   if (Array.isArray(relay)) {
     relay.forEach(async url => {
       const r = await pool.ensureRelay(url)
@@ -125,14 +132,18 @@ export async function getMetadata(pubkey: string): Promise<Metadata> {
   const cached = _metadataCache.get(pubkey)
   if (cached) return cached
 
-  let metadata = {pubkey, nip05valid: false, groups: [], writeRelays: []}
-  try {
-    const event = await pool.get(profileRelays, {kinds: [0], authors: [pubkey]})
-    metadata = {...JSON.parse(event!.content), ...metadata}
-  } catch (err) {
-    /***/
-  }
-  return metadata
+  const fetch = pool
+    .get(profileRelays, {kinds: [0], authors: [pubkey]})
+    .catch(() => ({content: '{}'}))
+    .then(event => ({
+      pubkey,
+      nip05valid: false,
+      groups: [],
+      writeRelays: [],
+      ...JSON.parse(event!.content)
+    }))
+  _metadataCache.set(pubkey, fetch)
+  return fetch
 }
 
 export async function getWriteRelays(
