@@ -1,9 +1,9 @@
 <script lang="ts">
-  import {onMount} from 'svelte'
+  import {afterUpdate, onMount} from 'svelte'
   import {debounce} from 'debounce'
   import type {Event} from 'nostr-tools/wasm'
+  import {normalizeURL} from 'nostr-tools/utils'
   import type {AbstractRelay, Subscription} from 'nostr-tools/abstract-relay'
-  import * as nip19 from 'nostr-tools/nip19'
   import {
     parseGroup,
     parseMembers,
@@ -11,18 +11,17 @@
     type Member
   } from 'nostr-tools/nip29'
 
-  import {afterNavigate} from '$app/navigation'
-  import {page} from '$app/stores'
+  import {account} from '../lib/nostr.ts'
+  import {pool, publish} from '../lib/nostr.ts'
+  import {showToast, humanDate} from '../lib/utils.ts'
+  import UserLabel from '../components/UserLabel.svelte'
+  import Header from '../components/Header.svelte'
+  import MemberLabel from '../components/MemberLabel.svelte'
+  import GroupsList from '../components/GroupsList.svelte'
 
-  import {account} from '../../lib/nostr.ts'
-  import {pool, publish} from '../../lib/nostr.ts'
-  import {showToast, humanDate} from '../../lib/utils.ts'
-  import UserLabel from '../../components/UserLabel.svelte'
-  import Header from '../../components/Header.svelte'
-  import MemberLabel from '../../components/MemberLabel.svelte'
-  import GroupsList from '../../components/GroupsList.svelte'
+  export let host: string
+  export let id: string
 
-  let naddr = $page.params.naddr
   let messages: Event[] = []
   let text = localStorage.getItem('text') || ''
   let isSending = false
@@ -36,7 +35,7 @@
   let sub: Subscription
   let eoseHappened = false
 
-  $: groupRawName = relay ? `${group?.id}@${new URL(relay.url).host}` : ''
+  $: groupRawName = relay ? `${new URL(relay.url).host}'${group?.id}` : ''
   $: isMember = !!members.find(m => m.pubkey === $account?.pubkey)
   $: isAdmin = !!admins.find(m => m.pubkey === $account?.pubkey)
 
@@ -62,12 +61,13 @@
   }
 
   onMount(() => {
-    loadChat()
     return unloadChat
   })
 
-  afterNavigate(() => {
-    if (naddr === $page.params.naddr) return
+  let current: {host: string; id: string} | null
+  afterUpdate(() => {
+    if (current && current.host === host && current.id === id) return
+    current = {host, id}
     unloadChat()
     loadChat()
   })
@@ -80,39 +80,32 @@
   }
 
   async function loadChat() {
-    naddr = $page.params.naddr
+    if (!current) return
 
     try {
-      let {data, type} = nip19.decode(naddr)
-      if (type !== 'naddr') return
-
-      let {relays, identifier} = data as nip19.AddressPointer
-      if (!relays || relays.length === 0) return
-
-      let relayUrl = relays![0]
-      group = {id: identifier}
-
-      relay = await pool.ensureRelay(relayUrl)
-      info = await fetch(relayUrl.replace('ws', 'http'), {
+      relay = await pool.ensureRelay(current.host)
+      info = await fetch(normalizeURL(current.host).replace('ws', 'http'), {
         headers: {accept: 'application/nostr+json'}
       }).then(r => r.json())
 
       sub = relay.subscribe(
         [
-          {kinds: [9], '#h': [identifier], limit: 700},
-          {kinds: [39000, 39001, 39002], '#d': [identifier]},
+          {kinds: [9], '#h': [current.id], limit: 700},
+          {kinds: [39000, 39001, 39002], '#d': [current.id]},
           {
             kinds: [9005],
-            '#h': [identifier],
+            '#h': [current.id],
             limit: 0,
             since: Math.round(Date.now() / 1000)
           }
         ],
         {
           onevent(event) {
+            if (!current) return
+
             switch (event.kind) {
               case 39000:
-                group = parseGroup(event)
+                group = parseGroup(event, current.host)
                 group.relay = relay.url
                 break
               case 39001:
@@ -151,6 +144,8 @@
         }
       )
     } catch (err: any) {
+      console.warn('failed to load chat', err)
+      console.warn(err.stack)
       showToast({type: 'error', text: err?.message || String(err)})
     }
   }
@@ -172,6 +167,7 @@
       isSending = false
     } catch (err) {
       console.warn('failed to ask to join', err)
+      console.warn(err.stack)
       showToast({type: 'error', text: String(err)})
       isSending = false
     }
@@ -194,6 +190,7 @@
       isSending = false
     } catch (err) {
       console.warn('failed to send', err)
+      console.warn(err.stack)
       showToast({type: 'error', text: String(err)})
       isSending = false
     }
@@ -217,6 +214,7 @@
         )
       } catch (err) {
         console.warn('failed to delete', err)
+        console.warn(err.stack)
         showToast({type: 'error', text: String(err)})
       }
     }
@@ -244,6 +242,7 @@
         })
       } catch (err) {
         console.warn('failed to ban', err)
+        console.warn(err.stack)
         showToast({type: 'error', text: String(err)})
       }
     }
@@ -299,7 +298,7 @@
     <div class="flex items-center justify-end mt-4">
       <div class="text-sm">room</div>
       <div class="text-emerald-600 text-lg mx-4 overflow-hidden text-ellipsis">
-        {group?.name || groupRawName || $page.params.naddr}
+        {group?.name || groupRawName || `${current?.host}'${current?.id}`}
       </div>
       <div class="text-xs text-stone-400">
         {groupRawName}
@@ -342,7 +341,7 @@
               <div class="self-end">
                 <UserLabel pubkey={message.pubkey} />
               </div>
-              <div class="break-all">
+              <div class="break-words">
                 {message.content}
               </div>
               <div class="flex justify-end text-stone-400 text-xs pr-1">

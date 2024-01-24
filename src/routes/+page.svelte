@@ -1,104 +1,48 @@
 <script lang="ts">
   import debounce from 'debounce'
-  import * as nip19 from 'nostr-tools/nip19'
-  import type {Event} from 'nostr-tools/wasm'
-  import type {Subscription, Relay} from 'nostr-tools/relay'
-  import {parseGroup, type Group} from 'nostr-tools/nip29'
+  import {
+    type Group,
+    type GroupReference,
+    subscribeRelayGroups,
+    parseGroupCode,
+    encodeGroupReference
+  } from 'nostr-tools/nip29'
 
   import {pool} from '../lib/nostr.ts'
   import Header from '../components/Header.svelte'
   import GroupsList from '../components/GroupsList.svelte'
 
-  let relayUrl = ''
-  let connecting = false
-  let failed = false
-  let naddr = ''
-  let groupId = ''
-  let relay: Relay | null = null
-  let sub: Subscription
+  let status: 'connecting' | 'connected' | 'failed' | null = null
+  let code = ''
+  let gr: GroupReference = {id: '', host: ''}
+  let cancel: () => void
   let channels: Group[] = []
-  let info: {pubkey: string; name: string; description: string; icon: string}
 
   const tryConnect = debounce(async () => {
-    if (sub) {
-      sub.close()
+    if (cancel) {
+      cancel()
       channels = []
     }
-    let normalized = relayUrl.startsWith('ws') ? relayUrl : 'wss://' + relayUrl
+    status = 'connecting'
 
-    try {
-      let url = new URL(normalized)
-      if (!url.protocol.startsWith('ws')) return
-    } catch (err) {
-      relay = null
-      connecting = false
-      failed = false
-      return
-    }
-
-    relay = null
-    connecting = true
-    failed = false
-    let eosed = true
-    try {
-      await Promise.all([
-        pool.ensureRelay(normalized).then(rl => {
-          relay = rl
-          sub = rl.subscribe(
-            [
-              {
-                kinds: [39000],
-                limit: 50
-              }
-            ],
-            {
-              onevent(event: Event) {
-                channels.push(parseGroup(event))
-                if (eosed) channels = channels
-              },
-              oneose() {
-                channels = channels
-                eosed = true
-              }
-            }
-          )
-        }),
-        fetch(normalized.replace(/^ws/, 'http'), {
-          headers: {accept: 'application/nostr+json'}
-        })
-          .then(r => r.json())
-          .then(i => {
-            info = i
-          })
-      ])
-    } catch (err) {
-      failed = true
-      relay = null
-    }
-    connecting = false
+    cancel = subscribeRelayGroups(pool, gr.host, {
+      ongroups(groups: Group[]) {
+        groups = groups
+      },
+      onerror(err: Error) {
+        console.warn('failed to load groups from relay', gr.host, err)
+        status = 'failed'
+      }
+    })
   }, 400)
 
   const parse = () => {
-    try {
-      let {data, type} = nip19.decode(naddr)
-      if (type === 'naddr') {
-        let {relays, identifier} = data as nip19.AddressPointer
-        relayUrl = relays![0]
-        tryConnect()
-        groupId = identifier
-      }
-    } catch (err) {
-      /***/
-    }
+    let res = parseGroupCode(code)
+    if (res) gr = res
   }
 
   const encode = debounce(() => {
-    naddr = nip19.naddrEncode({
-      kind: 39000,
-      relays: [relay!.url],
-      pubkey: info!.pubkey,
-      identifier: groupId!
-    })
+    code = gr ? encodeGroupReference(gr) : ''
   }, 300)
 </script>
 
@@ -111,17 +55,17 @@
   </column>
   <column class="">
     <div class="mt-4">
-      type relay url: <input bind:value={relayUrl} on:input={tryConnect} />
+      type relay url: <input bind:value={gr.host} on:input={tryConnect} />
     </div>
     <div class="mt-2 pl-4">
-      {#if relay || connecting || failed}
-        <span class="text-stone-500">{relay?.url || relayUrl}</span>
+      {#if status === 'connecting' || status === 'failed'}
+        <span class="text-stone-500">{gr.host}</span>
       {/if}
-      {#if relay}
+      {#if status === 'connected'}
         <span class="text-green-700">connected</span>
-      {:else if connecting}
+      {:else if status === 'connecting'}
         <span class="text-blue-700">connecting</span>
-      {:else if failed}
+      {:else if status === 'failed'}
         <span class="text-red-700">failed to connect</span>
       {/if}
     </div>
@@ -134,7 +78,7 @@
             <div
               class="cursor-pointer hover:underline text-blue-700"
               on:click={() => {
-                groupId = channel.id
+                gr.id = channel.id
                 encode()
               }}
             >
@@ -146,17 +90,17 @@
       {/each}
     </div>
 
-    {#if relay}
+    {#if status === 'connected'}
       <div class="mt-4">
-        type group id: <input bind:value={groupId} on:input={encode} />
+        type group id: <input bind:value={gr.id} on:input={encode} />
       </div>
     {/if}
 
     <div class="mt-4">
-      {#if relay && groupId && naddr}
+      {#if gr.id !== '' && gr.host !== ''}
         <a
           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400 transition-colors"
-          href="/{naddr}">open</a
+          href="/{code}">open</a
         >
       {/if}
     </div>
@@ -164,9 +108,9 @@
   <div class="flex items-center justify-center uppercase text-2xl mx-4">or</div>
   <column class="">
     <div class="mt-4 flex items-center">
-      type a group code: <textarea
-        class="ml-2 h-48"
-        bind:value={naddr}
+      type a group code: <input
+        class="ml-2"
+        bind:value={code}
         on:input={parse}
       />
     </div>
