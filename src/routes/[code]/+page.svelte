@@ -5,7 +5,7 @@
   import {page} from '$app/stores'
 
   import ChatPage from '../../pages/ChatPage.svelte'
-  import RelayPage from '../../pages/RelayPage.svelte'
+  import SelectPage from '../../pages/SelectPage.svelte'
 
   let host: string
   let id: string
@@ -25,8 +25,8 @@
         host = host.slice(6)
       }
       id = identifier
-    } else if (code.split('#').length === 2) {
-      let spl = code.split('#')
+    } else if (code.split("'").length === 2) {
+      let spl = code.split("'")
       host = spl[0]
       id = spl[1]
     } else if (code.split('.').length > 1) {
@@ -38,7 +38,7 @@
 {#if host && id}
   <ChatPage {host} {id} />
 {:else if host}
-  <RelayPage {host} />
+  <SelectPage initialHost={host} />
 {:else}
   <div class="p-8">not found</div>
 {/if}
