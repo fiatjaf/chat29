@@ -13,7 +13,7 @@
   import GroupsList from '../components/GroupsList.svelte'
   import {afterUpdate} from 'svelte'
 
-  export let initialHost: string
+  export let initialHost: string | null = null
 
   let gr: GroupReference = {id: '', host: ''}
   let status: 'connecting' | 'connected' | 'failed' | null = null
@@ -22,9 +22,10 @@
   let channels: Group[] = []
 
   afterUpdate(() => {
-    if (initialHost !== gr.host) {
+    if (initialHost) {
       gr.host = initialHost
       gr.id = ''
+      initialHost = null
       tryConnect()
     }
   })
