@@ -7,12 +7,13 @@
   export let pubkey: string
   let metadata: Metadata
   let npub = nip19.npubEncode(pubkey)
+  let imgError = false
 
   $: name =
     metadata?.name && metadata.name.trim() !== ''
       ? metadata.name
       : npub.slice(0, 11)
-  $: picture = metadata?.picture
+  $: picture = imgError ? null : metadata?.picture
 
   onMount(async () => {
     metadata = await getMetadata(pubkey)
@@ -31,6 +32,9 @@
         class="aspect-square h-full border border-stone-300 object-cover"
         src={picture}
         alt="user avatar"
+        on:error={() => {
+          imgError = true
+        }}
       />&nbsp;
     {:else}
       <img
