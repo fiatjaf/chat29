@@ -134,14 +134,19 @@ export async function getMetadata(pubkey: string): Promise<Metadata> {
 
   const fetch = pool
     .get(profileRelays, {kinds: [0], authors: [pubkey]})
-    .catch(() => ({content: '{}'}))
-    .then(event => ({
-      pubkey,
-      nip05valid: false,
-      groups: [],
-      writeRelays: [],
-      ...JSON.parse(event!.content)
-    }))
+    .catch(() => null)
+    .then(event => {
+      if (event) {
+        return {
+          pubkey,
+          nip05valid: false,
+          groups: [],
+          writeRelays: [],
+          ...JSON.parse(event!.content)
+        }
+      }
+      return {pubkey, nip05valid: false}
+    })
   _metadataCache.set(pubkey, fetch)
   return fetch
 }
@@ -206,8 +211,7 @@ export async function subscribeGroups(
               .get([tag[2]], {kinds: [39000], '#d': [tag[1]]})
               .then(gevent => {
                 if (gevent) {
-                  const group = parseGroup(gevent)
-                  group.relay = tag[2]
+                  const group = parseGroup(gevent, tag[2])
                   return group
                 }
                 return null
