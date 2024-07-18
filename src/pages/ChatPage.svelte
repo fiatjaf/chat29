@@ -11,7 +11,7 @@
     type Member
   } from 'nostr-tools/nip29'
 
-  import {account} from '../lib/nostr.ts'
+  import {account, signer} from '../lib/nostr.ts'
   import {pool, publish} from '../lib/nostr.ts'
   import {showToast, humanDate} from '../lib/utils.ts'
   import UserLabel from '../components/UserLabel.svelte'
@@ -140,6 +140,11 @@
           },
           onclose(reason) {
             console.warn(relay.url, 'relay connection closed', reason)
+            if (reason.includes('auth-required')) {
+              relay.auth(async (evt) => await signer.signEvent(evt)).then(() => {
+                loadChat()
+              })
+            }
           }
         }
       )
