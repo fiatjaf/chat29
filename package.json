@@ -42,7 +42,8 @@
   "type": "module",
   "dependencies": {
     "debounce": "^1.2.1",
-    "nostr-tools": "^2.1.5",
+    "nostr-tools": "2.1.5",
+    "nostr-wasm": "0.1.0",
     "s-ago": "^2.2.0"
   }
 }
