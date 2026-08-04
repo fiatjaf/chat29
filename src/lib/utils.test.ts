@@ -32,4 +32,22 @@ describe('showToast', () => {
     vi.advanceTimersByTime(1000)
     expect(get(toastState)).toBe(null)
   })
+
+  it('gives a queued toast its own display time', () => {
+    showToast({type: 'normal', text: 'first'}, 1000)
+    showToast({type: 'error', text: 'second'}, 1000)
+
+    vi.advanceTimersByTime(999)
+    expect(get(toastState)?.text).toBe('first')
+
+    vi.advanceTimersByTime(1)
+    expect(get(toastState)?.text).toBe('second')
+
+    // the queued toast used to be replaced within the same tick
+    vi.advanceTimersByTime(999)
+    expect(get(toastState)?.text).toBe('second')
+
+    vi.advanceTimersByTime(1)
+    expect(get(toastState)).toBe(null)
+  })
 })
