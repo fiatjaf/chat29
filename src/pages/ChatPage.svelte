@@ -52,9 +52,7 @@
     if (messages.length > 3) {
       setTimeout(() => {
         document
-          .getElementById(
-            `evt-${messages[messages.length - 1].id.substring(-6)}`
-          )
+          .getElementById(`evt-${messages[messages.length - 1].id.slice(-6)}`)
           ?.scrollIntoView()
       }, 25)
     }
@@ -65,9 +63,11 @@
   })
 
   let current: {host: string; id: string} | null
+  let authAttempted = false
   afterUpdate(() => {
     if (current && current.host === host && current.id === id) return
     current = {host, id}
+    authAttempted = false
     unloadChat()
     loadChat()
   })
@@ -77,6 +77,8 @@
     eoseHappened = false
     messages = []
     group = null
+    admins = []
+    members = []
   }
 
   async function loadChat() {
@@ -93,7 +95,7 @@
           {kinds: [9], '#h': [current.id], limit: 700},
           {kinds: [39000, 39001, 39002], '#d': [current.id]},
           {
-            kinds: [9005],
+            kinds: [5, 9005],
             '#h': [current.id],
             limit: 0,
             since: Math.round(Date.now() / 1000)
@@ -115,8 +117,12 @@
                 members = parseMembers(event)
                 break
               case 9:
-                messages.push(event as any)
-                if (eoseHappened) updateMessages()
+                // the subscription can be restarted (e.g. after AUTH), so
+                // the same stored events may arrive again
+                if (!messages.some(m => m.id === event.id)) {
+                  messages.push(event as any)
+                  if (eoseHappened) updateMessages()
+                }
                 break
               case 9005:
               case 5:
@@ -134,17 +140,26 @@
             }
           },
           oneose() {
-            messages = messages.reverse()
+            // relays are not required to return stored events in any
+            // particular order, so sort instead of blindly reversing
+            messages.sort((a, b) => a.created_at - b.created_at)
+            messages = messages
             scrollToEnd()
             eoseHappened = true
           },
           onclose(reason) {
             console.warn(relay.url, 'relay connection closed', reason)
-            if (reason.includes('auth-required')) {
+            if (reason.includes('auth-required') && !authAttempted) {
+              authAttempted = true
               relay
                 .auth(evt => signer.signEvent(evt) as Promise<VerifiedEvent>)
                 .then(() => {
+                  unloadChat()
                   loadChat()
+                })
+                .catch((err: any) => {
+                  console.warn('auth failed', err)
+                  showToast({type: 'error', text: String(err)})
                 })
             }
           }
@@ -207,7 +222,7 @@
     const id = (ev.currentTarget as HTMLElement).dataset.id
     if (typeof id === 'string' && confirm('really delete this message?')) {
       try {
-        publish(
+        await publish(
           {
             kind: isAdmin ? 9005 : 5,
             content: '',
@@ -231,7 +246,7 @@
     const member: Member = ev.detail.member
     if (member && confirm('really ban this user?')) {
       try {
-        publish(
+        await publish(
           {
             kind: 9001,
             content: '',
@@ -343,7 +358,7 @@
             <div
               class="grid gap-2 items-center hover:bg-emerald-100 group"
               style:grid-template-columns="120px auto 99px"
-              id={`evt-${message.id.substring(-6)}`}
+              id={`evt-${message.id.slice(-6)}`}
             >
               <div class="self-end">
                 <UserLabel pubkey={message.pubkey} />
