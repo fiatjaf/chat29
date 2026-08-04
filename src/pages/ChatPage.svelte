@@ -25,8 +25,6 @@
   let messages: Event[] = []
   let text = localStorage.getItem('text') || ''
   let isSending = false
-  let controlIsDown = false
-  let shiftIsDown = false
   let group: Group | null = null
   let admins: Member[] = []
   let members: Member[] = []
@@ -194,8 +192,6 @@
         },
         relay.url
       )
-      text = ''
-      saveToLocalStorage()
       isSending = false
     } catch (err: any) {
       console.warn('failed to ask to join', err)
@@ -206,6 +202,8 @@
   }
 
   async function sendMessage() {
+    if (isSending || !isMember || !group || !relay) return
+    if (text.trim() === '') return
     try {
       isSending = true
       await publish(
@@ -281,40 +279,19 @@
   }
 
   function onKeyDown(ev: KeyboardEvent) {
-    if (ev.repeat) return
-    switch (ev.key) {
-      case 'Shift':
-        shiftIsDown = true
-        ev.preventDefault()
-        break
-      case 'Control':
-        controlIsDown = true
-        ev.preventDefault()
-        break
-      case 'Enter':
-        if (!controlIsDown && !shiftIsDown) {
-          ev.preventDefault()
-          sendMessage()
-        }
-        break
-    }
-  }
-
-  function onKeyUp(ev: KeyboardEvent) {
-    switch (ev.key) {
-      case 'Shift':
-        shiftIsDown = false
-        ev.preventDefault()
-        break
-      case 'Control':
-        controlIsDown = false
-        ev.preventDefault()
-        break
+    // plain Enter sends; Shift/Ctrl+Enter inserts a newline; Enter while
+    // composing (IME) only confirms the conversion
+    if (
+      ev.key === 'Enter' &&
+      !ev.shiftKey &&
+      !ev.ctrlKey &&
+      !ev.isComposing
+    ) {
+      ev.preventDefault()
+      sendMessage()
     }
   }
 </script>
-
-<svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
 <div
   class="h-full grid gap-2"
@@ -402,7 +379,7 @@
     <section>
       {#if isMember}
         <form
-          on:submit={sendMessage}
+          on:submit|preventDefault={sendMessage}
           class="grid grid-cols-7 pt-4 mb-2 h-full py-4"
         >
           <textarea
@@ -415,6 +392,7 @@
               : 'type a message here (press Enter to send)'}
             bind:value={text}
             on:input={saveToLocalStorage}
+            on:keydown={onKeyDown}
             readonly={isSending}
           />
           <div class="col-span-1 pl-2">
