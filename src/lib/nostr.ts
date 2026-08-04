@@ -148,14 +148,17 @@ export async function publish(
   relay: string | string[]
 ): Promise<void> {
   const event = await signer.signEvent(unsignedEvent)
-  if (Array.isArray(relay)) {
-    relay.forEach(async url => {
+  const relays = Array.isArray(relay) ? relay : [relay]
+  const results = await Promise.allSettled(
+    relays.map(async url => {
       const r = await pool.ensureRelay(url)
       await r.publish(event)
     })
-  } else {
-    const r = await pool.ensureRelay(relay)
-    await r.publish(event)
+  )
+  // succeed if at least one relay accepted the event
+  if (!results.some(res => res.status === 'fulfilled')) {
+    const first = results[0] as PromiseRejectedResult | undefined
+    throw first ? first.reason : new Error('no relays to publish to')
   }
 }
 
