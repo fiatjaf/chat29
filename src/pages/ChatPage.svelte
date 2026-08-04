@@ -86,9 +86,19 @@
 
     try {
       relay = await pool.ensureRelay(current.host)
-      info = await fetch(normalizeURL(current.host).replace('ws', 'http'), {
+
+      // NIP-11 information is nice to have, but plenty of relays don't
+      // serve it (or lack CORS headers) — never let it block the chat
+      fetch(normalizeURL(current.host).replace('ws', 'http'), {
         headers: {accept: 'application/nostr+json'}
-      }).then(r => r.json())
+      })
+        .then(r => r.json())
+        .then(nip11 => {
+          info = nip11
+        })
+        .catch(err => {
+          console.warn('failed to fetch relay information', err)
+        })
 
       sub = relay.subscribe(
         [
