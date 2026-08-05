@@ -45,6 +45,8 @@
   "type": "module",
   "dependencies": {
     "debounce": "^1.2.1",
+    "dompurify": "^3.4.13",
+    "markdown-it": "^15.0.0",
     "nostr-login": "^1.7.12",
     "nostr-tools": "2.1.5",
     "nostr-wasm": "0.1.0",

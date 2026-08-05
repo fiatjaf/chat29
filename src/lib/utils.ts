@@ -8,6 +8,40 @@ export function humanDate(created_at: number): string {
   return ago(new Date(d))
 }
 
+export type MessageSegment = {
+  type: 'text' | 'code'
+  content: string
+  lang?: string
+}
+
+// split a message into plain-text and ```fenced code``` segments; unclosed
+// fences stay plain text. rendering keeps using svelte text interpolation,
+// so nothing here needs escaping
+export function splitCodeBlocks(src: string): MessageSegment[] {
+  const segments: MessageSegment[] = []
+  const re = /```([^\n`]*)\n([\s\S]*?)\n?```/g
+
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src)) !== null) {
+    let text = src.slice(last, m.index)
+    // drop the newline separating text from the fence, the block spacing
+    // already provides it visually
+    text = text.replace(/\n$/, '')
+    if (last > 0) text = text.replace(/^\n/, '')
+    if (text !== '') segments.push({type: 'text', content: text})
+
+    segments.push({type: 'code', content: m[2], lang: m[1].trim() || undefined})
+    last = re.lastIndex
+  }
+
+  let rest = src.slice(last)
+  if (last > 0) rest = rest.replace(/^\n/, '')
+  if (rest !== '') segments.push({type: 'text', content: rest})
+
+  return segments
+}
+
 export const toastState = writable<ToastState | null>(null)
 
 export function showToast(state: ToastState, timeout: number = 4000) {
