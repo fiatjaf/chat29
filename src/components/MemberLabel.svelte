@@ -5,6 +5,7 @@
 
   export let member: Member
   export let canBan: boolean = false
+  export let relays: string[] | undefined = undefined
 
   const dispatch = createEventDispatcher()
 
@@ -14,7 +15,7 @@
 </script>
 
 <div class="flex items-center">
-  <UserLabel pubkey={member.pubkey} />
+  <UserLabel pubkey={member.pubkey} {relays} />
   {#if canBan}
     <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
