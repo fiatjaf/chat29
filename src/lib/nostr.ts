@@ -46,34 +46,56 @@ export const signer = {
 }
 
 let removeAccount: () => void
-let initializeAccount: (pubkey: string) => Promise<void>
+let initializeAccount: (pubkey: string, stored?: Metadata) => Promise<void>
 export const account = readable<Metadata | null>(null, set => {
   let isInitialized = false
+  let currentPubkey: string | undefined
+  let session = 0
+  let closeGroupsSub: (() => void) | undefined
 
   removeAccount = () => {
+    // invalidate pending async work from the old session so it can't
+    // write to localStorage or the store after logout
+    session++
     isInitialized = false
+    currentPubkey = undefined
+    if (closeGroupsSub) {
+      closeGroupsSub()
+      closeGroupsSub = undefined
+    }
     localStorage.removeItem('loggedin')
     set(null)
   }
 
-  initializeAccount = async (pubkey: string) => {
-    if (isInitialized) return
+  initializeAccount = async (pubkey: string, stored?: Metadata) => {
+    if (isInitialized) {
+      if (pubkey === currentPubkey) return
+      // the signer switched to a different account
+      removeAccount()
+    }
     isInitialized = true
+    currentPubkey = pubkey
+    const thisSession = ++session
 
-    const account = await getMetadata(pubkey)
+    const account = stored || (await getMetadata(pubkey))
+    if (thisSession !== session) return
+    if (!account.groups) account.groups = []
 
     localStorage.setItem('loggedin', JSON.stringify(account))
     set(account)
 
-    account.writeRelays =
-      (await getWriteRelays(account.pubkey)) ?? defaultRelays
+    const writeRelays = await getWriteRelays(account.pubkey)
+    if (thisSession !== session) return
+    account.writeRelays = writeRelays ?? defaultRelays
     set(account)
 
-    subscribeGroups(
+    if (closeGroupsSub) closeGroupsSub()
+    closeGroupsSub = subscribeGroups(
       account.writeRelays,
       account.pubkey,
       account.lastGroupsList,
       (groups, lastGroupsList) => {
+        if (thisSession !== session) return
         account.groups = groups
         account.lastGroupsList = lastGroupsList
         localStorage.setItem('loggedin', JSON.stringify(account))
@@ -85,11 +107,20 @@ export const account = readable<Metadata | null>(null, set => {
   // try to load account from localStorage on startup
   const data = localStorage.getItem('loggedin')
   try {
-    const account: Metadata = JSON.parse(data || '')
-    if (!account.groups) account.groups = []
-    set(account)
+    const stored: Metadata = JSON.parse(data || '')
+    if (!stored.groups) stored.groups = []
+    set(stored)
+    // resume the session: refresh relays and watch for group list updates
+    initializeAccount(stored.pubkey, stored)
   } catch (err) {
     /***/
+  }
+
+  return () => {
+    if (closeGroupsSub) {
+      closeGroupsSub()
+      closeGroupsSub = undefined
+    }
   }
 })
 
@@ -137,15 +168,19 @@ export async function getMetadata(pubkey: string): Promise<Metadata> {
     .catch(() => null)
     .then(event => {
       if (event) {
-        return {
-          pubkey,
-          nip05valid: false,
-          groups: [],
-          writeRelays: [],
-          ...JSON.parse(event!.content)
+        try {
+          return {
+            pubkey,
+            nip05valid: false,
+            groups: [],
+            writeRelays: [],
+            ...JSON.parse(event.content)
+          }
+        } catch (err) {
+          /* broken profile content, use the fallback below */
         }
       }
-      return {pubkey, nip05valid: false}
+      return {pubkey, nip05valid: false, groups: [], writeRelays: []}
     })
   _metadataCache.set(pubkey, fetch)
   return fetch
@@ -177,16 +212,16 @@ export async function getWriteRelays(
   }
 }
 
-export async function subscribeGroups(
+export function subscribeGroups(
   relays: string[],
   pubkey: string,
   lastGroupsList: Event | undefined,
   onGroupsUpdated: (_: Group[], __: Event) => void
-): Promise<void> {
+): () => void {
   let generation = 0
 
   if (lastGroupsList) processGroupsList(lastGroupsList)
-  pool.subscribeMany(
+  const sub = pool.subscribeMany(
     relays,
     [
       {
@@ -233,5 +268,11 @@ export async function subscribeGroups(
       if (thisGeneration !== generation) return
       onGroupsUpdated(groups.filter(Boolean) as Group[], groupsList)
     })
+  }
+
+  return () => {
+    // discard any in-flight processGroupsList results as well
+    generation++
+    sub.close()
   }
 }
