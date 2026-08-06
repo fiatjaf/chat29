@@ -1,7 +1,7 @@
 <script lang="ts">
   import {afterUpdate, onMount} from 'svelte'
   import {debounce} from 'debounce'
-  import type {Event} from 'nostr-tools/wasm'
+  import type {Event, VerifiedEvent} from 'nostr-tools/wasm'
   import {normalizeURL} from 'nostr-tools/utils'
   import type {AbstractRelay, Subscription} from 'nostr-tools/abstract-relay'
   import {
@@ -141,9 +141,11 @@
           onclose(reason) {
             console.warn(relay.url, 'relay connection closed', reason)
             if (reason.includes('auth-required')) {
-              relay.auth(async (evt) => await signer.signEvent(evt)).then(() => {
-                loadChat()
-              })
+              relay
+                .auth(evt => signer.signEvent(evt) as Promise<VerifiedEvent>)
+                .then(() => {
+                  loadChat()
+                })
             }
           }
         }
@@ -170,7 +172,7 @@
       text = ''
       saveToLocalStorage()
       isSending = false
-    } catch (err) {
+    } catch (err: any) {
       console.warn('failed to ask to join', err)
       console.warn(err.stack)
       showToast({type: 'error', text: String(err)})
@@ -193,7 +195,7 @@
       text = ''
       saveToLocalStorage()
       isSending = false
-    } catch (err) {
+    } catch (err: any) {
       console.warn('failed to send', err)
       console.warn(err.stack)
       showToast({type: 'error', text: String(err)})
@@ -217,7 +219,7 @@
           },
           relay.url
         )
-      } catch (err) {
+      } catch (err: any) {
         console.warn('failed to delete', err)
         console.warn(err.stack)
         showToast({type: 'error', text: String(err)})
@@ -245,7 +247,7 @@
           type: 'success',
           text: 'successfully banned ' + member.pubkey
         })
-      } catch (err) {
+      } catch (err: any) {
         console.warn('failed to ban', err)
         console.warn(err.stack)
         showToast({type: 'error', text: String(err)})
