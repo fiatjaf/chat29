@@ -3,10 +3,66 @@
   import {normalizeURL} from 'nostr-tools/utils'
   import * as nip19 from 'nostr-tools/nip19'
 
-  import {account, defaultRelays, publish} from '../lib/nostr.ts'
+  import {
+    account,
+    defaultRelays,
+    publish,
+    getMetadata,
+    profileRelays,
+    type ChatGroup
+  } from '../lib/nostr.ts'
   import {showToast} from '$lib/utils.ts'
 
   export let current: Group | null = null
+
+  // Buzz names every DM channel "DM", so several entries in the list can
+  // share a name. Those get the other participant's name appended.
+  let counterparts: Record<string, string> = {}
+
+  $: groups = ($account?.groups || []) as ChatGroup[]
+  $: duplicatedNames = new Set(
+    groups
+      .map(g => g.name)
+      .filter(
+        (name, i, all) => !!name && all.indexOf(name) !== all.lastIndexOf(name)
+      ) as string[]
+  )
+  $: if (duplicatedNames.size) resolveCounterparts(groups)
+
+  function groupKey(g: Group): string {
+    return `${g.relay}'${g.id}`
+  }
+
+  async function resolveCounterparts(list: ChatGroup[]) {
+    for (const g of list) {
+      const key = groupKey(g)
+      if (!g.name || !duplicatedNames.has(g.name)) continue
+      if (counterparts[key] !== undefined) continue
+      const other = (g.participants || []).find(p => p !== $account?.pubkey)
+      if (!other) continue
+      counterparts[key] = '' // don't look the same pubkey up twice
+      try {
+        const md = await getMetadata(other, [
+          ...(g.relay ? [g.relay] : []),
+          ...profileRelays
+        ])
+        const name = md.name?.trim() || md.display_name?.trim()
+        counterparts[key] = name || nip19.npubEncode(other).slice(0, 11)
+        counterparts = counterparts
+      } catch (err) {
+        /* leave it unlabelled */
+      }
+    }
+  }
+
+  // what the sidebar shows for a group: its name, plus the other
+  // participant when the name alone is ambiguous
+  function displayName(g: ChatGroup): string {
+    const base = g.name || g.id
+    if (!g.name || !duplicatedNames.has(g.name)) return base
+    const who = counterparts[groupKey(g)]
+    return who ? `${base} · ${who}` : base
+  }
 
   function sameRelay(a: string | undefined, b: string | undefined): boolean {
     if (!a || !b) return a === b
@@ -116,41 +172,66 @@
   }
 </script>
 
-<div class="flex flex-col pr-8">
-  <h3 class="text-lg text-emerald-600 mb-2">groups</h3>
+<div class="flex w-full flex-col">
+  <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+    your groups
+  </h3>
 
-  {#if current && $account && !$account.groups.some(g => current && sameGroup(g, current))}
-    <button
-      class="p-1 my-2 text-xs bg-blue-500 hover:bg-blue-400 text-white rounded transition-colors"
-      on:click={addGroupToList}>add this group to list?</button
-    >
+  {#if !$account}
+    <div class="text-sm leading-relaxed text-slate-400">
+      login (top right) to keep a list of your groups here
+    </div>
+  {:else if !$account.groups.length && !current}
+    <div class="text-sm leading-relaxed text-slate-400">
+      no groups saved yet — join a group and add it to your list
+    </div>
   {/if}
 
-  {#each $account?.groups || [] as group (`${group.relay}'${group.id}`)}
+  {#each groups as group (`${group.relay}'${group.id}`)}
     <div
-      class="flex px-1"
-      class:bg-emerald-200={current && sameGroup(group, current)}
+      class="group flex items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors"
+      class:bg-indigo-50={current && sameGroup(group, current)}
+      class:text-indigo-700={current && sameGroup(group, current)}
+      class:hover:bg-slate-100={!current || !sameGroup(group, current)}
     >
-      {#if group.picture}
-        <img src={group.picture} alt="group" />
-      {/if}
-      {#if !current || !sameGroup(group, current)}
-        <a class="cursor-pointer hover:underline" href={groupLink(group)}
-          >{group.name || group.id}</a
-        >
-      {:else}
-        <span>{group.name || group.id}</span>
-      {/if}
+      <div class="flex min-w-0 items-center gap-2">
+        {#if group.picture}
+          <img
+            class="h-5 w-5 shrink-0 rounded object-cover"
+            src={group.picture}
+            alt="group"
+          />
+        {/if}
+        {#if !current || !sameGroup(group, current)}
+          <a
+            class="cursor-pointer truncate hover:underline"
+            title={group.id}
+            href={groupLink(group)}>#{displayName(group)}</a
+          >
+        {:else}
+          <span class="truncate font-medium" title={group.id}
+            >#{displayName(group)}</span
+          >
+        {/if}
+      </div>
       <!-- svelte-ignore a11y-no-static-element-interactions a11y-missing-attribute -->
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <a
-        class="hover:text-red-600 text-stone-400 cursor-pointer ml-1"
+        class="cursor-pointer text-slate-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
         on:click={() => removeGroupFromList(group)}
         title="remove group from list"
       >
         ×
       </a>
-      &nbsp;
     </div>
   {/each}
+
+  <!-- kept below the list: toggling this button while switching groups
+       must not shift the group rows above it -->
+  {#if current && $account && !$account.groups.some(g => current && sameGroup(g, current))}
+    <button
+      class="my-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500"
+      on:click={addGroupToList}>add this group to list?</button
+    >
+  {/if}
 </div>
