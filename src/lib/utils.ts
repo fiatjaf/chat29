@@ -28,7 +28,7 @@ function onToastEnd() {
   const next = nextToasts.shift()
   if (next) {
     toastState.set(next.state)
-    setTimeout(onToastEnd)
+    setTimeout(onToastEnd, next.timeout)
   } else {
     toastState.set(null)
   }
