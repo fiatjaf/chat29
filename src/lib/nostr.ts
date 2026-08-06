@@ -183,6 +183,8 @@ export async function subscribeGroups(
   lastGroupsList: Event | undefined,
   onGroupsUpdated: (_: Group[], __: Event) => void
 ): Promise<void> {
+  let generation = 0
+
   if (lastGroupsList) processGroupsList(lastGroupsList)
   pool.subscribeMany(
     relays,
@@ -203,30 +205,33 @@ export async function subscribeGroups(
   )
 
   function processGroupsList(groupsList: Event) {
+    const thisGeneration = ++generation
     Promise.all(
-      groupsList.tags.map(async tag => {
-        try {
-          if (tag[0] === 'group' && tag.length >= 3) {
-            return pool
-              .get([tag[2]], {kinds: [39000], '#d': [tag[1]]})
-              .then(gevent => {
-                if (gevent) {
-                  const group = parseGroup(gevent, tag[2])
-                  return group
-                }
-                return null
-              })
-          }
-        } catch (err) {
-          /***/
+      groupsList.tags.map(async (tag): Promise<Group | null> => {
+        if (tag[0] !== 'group' || tag.length < 3) return null
+
+        // if the group's relay can't be reached right now we still keep the
+        // group in the list, otherwise it would silently vanish
+        const fallback: Group = {
+          id: tag[1],
+          relay: tag[2],
+          pubkey: '',
+          name: tag[1]
         }
-        return null
+        try {
+          const gevent = await pool.get([tag[2]], {
+            kinds: [39000],
+            '#d': [tag[1]]
+          })
+          return gevent ? parseGroup(gevent, tag[2]) : fallback
+        } catch (err) {
+          return fallback
+        }
       })
-    ).then((groups: (Group | null)[]) =>
-      onGroupsUpdated(
-        groups.filter(Boolean) as Group[],
-        lastGroupsList as Event
-      )
-    )
+    ).then((groups: (Group | null)[]) => {
+      // a newer groups list started processing while we were fetching
+      if (thisGeneration !== generation) return
+      onGroupsUpdated(groups.filter(Boolean) as Group[], groupsList)
+    })
   }
 }
