@@ -11,7 +11,7 @@
   import {pool} from '../lib/nostr.ts'
   import Header from '../components/Header.svelte'
   import GroupsList from '../components/GroupsList.svelte'
-  import {afterUpdate} from 'svelte'
+  import {afterUpdate, onDestroy} from 'svelte'
 
   export let initialHost: string | null = null
 
@@ -30,8 +30,13 @@
     }
   })
 
+  onDestroy(() => {
+    if (cancel) cancel()
+  })
+
   const tryConnect = debounce(async () => {
-    if (gr.host.length < 5 && gr.host.split('.').length < 2) return
+    // wait until the input looks like a host at all
+    if (gr.host.length < 5 || gr.host.split('.').length < 2) return
 
     if (cancel) {
       cancel()
