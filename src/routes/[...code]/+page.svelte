@@ -27,17 +27,24 @@
         let {relays, identifier} = data as nip19.AddressPointer
         if (!relays || relays.length === 0) return
 
-        host = relays[0].replace(/^wss?:\/\//, '')
+        host = relays[0].replace(/^wss?:\/\//, '').replace(/\/+$/, '')
         id = identifier
       } catch (err) {
         console.warn('invalid naddr', code, err)
       }
     } else if (code.split("'").length === 2) {
       let spl = code.split("'")
-      host = spl[0]
+      // hosts copied from relay URLs may carry a trailing slash (the
+      // route is a rest parameter exactly so such codes still match)
+      host = spl[0].replace(/\/+$/, '')
       id = spl[1]
     } else if (code.split('.').length > 1) {
-      host = code
+      host = code.replace(/\/+$/, '')
+    }
+
+    // remember the last opened group so `/` can jump straight back to it
+    if (host && id) {
+      localStorage.setItem('lastGroupCode', code)
     }
   })
 </script>
