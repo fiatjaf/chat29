@@ -7,24 +7,31 @@
   import ChatPage from '../../pages/ChatPage.svelte'
   import SelectPage from '../../pages/SelectPage.svelte'
 
-  let host: string
-  let id: string
+  let host = ''
+  let id = ''
 
   afterNavigate(() => {
     let code = $page.params.code
 
+    // this component instance is reused across navigations, so start
+    // from a clean slate or the previous room's values leak into the
+    // next one (e.g. /relay.host would open the previously viewed id)
+    host = ''
+    id = ''
+
     if (code.startsWith('naddr1')) {
-      let {data, type} = nip19.decode(code)
-      if (type !== 'naddr') return
+      try {
+        let {data, type} = nip19.decode(code)
+        if (type !== 'naddr') return
 
-      let {relays, identifier} = data as nip19.AddressPointer
-      if (!relays || relays.length === 0) return
+        let {relays, identifier} = data as nip19.AddressPointer
+        if (!relays || relays.length === 0) return
 
-      host = relays![0]
-      if (host.startsWith('wss://')) {
-        host = host.slice(6)
+        host = relays[0].replace(/^wss?:\/\//, '')
+        id = identifier
+      } catch (err) {
+        console.warn('invalid naddr', code, err)
       }
-      id = identifier
     } else if (code.split("'").length === 2) {
       let spl = code.split("'")
       host = spl[0]
